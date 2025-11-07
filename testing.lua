@@ -5,7 +5,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Core Memory v1.2 \\ ProxFlare Hub",
-    LoadingTitle = "esidence Massacre",
+    LoadingTitle = "Residence Massacre",
     LoadingSubtitle = "by Tea's Studio",
     ConfigurationSaving = {
         Enabled = true,
