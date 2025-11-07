@@ -5,7 +5,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Core Memory v1.2 \\ ProxFlare Hub",
-    LoadingTitle = "Residence Massacre",
+    LoadingTitle = "besidence Massacre",
     LoadingSubtitle = "by Tea's Studio",
     ConfigurationSaving = {
         Enabled = true,
@@ -173,14 +173,17 @@ RadarTab:CreateParagraph({
 })
 
 RadarTab:CreateParagraph({
+    Title = "",
     Content = "When enabled it does the following..."
 })
 
 RadarTab:CreateParagraph({
+    Title = "",
     Content = "When enabled it does the following..."
 })
 
 RadarTab:CreateParagraph({
+    Title = "",
     Content = "When enabled it does the following..."
 })
 
