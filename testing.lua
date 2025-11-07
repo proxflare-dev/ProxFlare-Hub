@@ -2,20 +2,8 @@
 -- INFO + MONSTER RADAR + AUTOMATIC — FINAL & LAG-FREE
 
 -- SAFE RAYFIELD LOAD
-local Rayfield
-local success, err = pcall(function()
-    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-end)
-
-if not success or not Rayfield then
-    error("Rayfield failed: " .. tostring(err))
-    return
-end
-
--- WAIT UNTIL FULLY LOADED
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 repeat task.wait() until Rayfield and Rayfield.CreateWindow
-
-print("Rayfield ready!")
 local Window = Rayfield:CreateWindow({
     Name = "Residence Massacre",
     LoadingTitle = "Loading...",
