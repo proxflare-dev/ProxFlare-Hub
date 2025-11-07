@@ -173,17 +173,17 @@ RadarTab:CreateParagraph({
 })
 
 RadarTab:CreateParagraph({
-    Title = " ",
+    Title = "1",
     Content = "[ # ] RED ESP == FINAL STAGE | 3 |"
 })
 
 RadarTab:CreateParagraph({
-    Title = " ",
+    Title = "2",
     Content = "[ # ] YELLOW ESP == SECOND STAGE | 2 |"
 })
 
 RadarTab:CreateParagraph({
-    Title = " ",
+    Title = "3",
     Content = "[ # ] GREEN ESP == FIRST STAGE | 1 |"
 })
 
