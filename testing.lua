@@ -4,7 +4,7 @@
 -- SAFE RAYFIELD LOAD
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-    Name = "Core Memory v1.2 \\ ProxFlare Hub",
+    Name = "core Memory v1.2 \\ ProxFlare Hub",
     LoadingTitle = "Residence Massacre",
     LoadingSubtitle = "by Tea's Studio",
     ConfigurationSaving = {
