@@ -98,7 +98,7 @@ local function setupESP()
                     Title = modelName:upper() .. " ALERT",
                     Content = "Stage " .. stage .. " detected!",
                     Duration = 4,
-                    Image = ICON_RADAR
+                    Image = ICON_INFO
                 })
 
                 local h = highlights[model]
@@ -153,7 +153,7 @@ RadarTab:CreateToggle({
                 Title = "ESP ACTIVE",
                 Content = "Tracking all sources. Closet = Red at Stage 1.",
                 Duration = 4,
-                Image = ICON_RADAR
+                Image = ICON_INFO
             })
         else
             clearESP()
@@ -161,7 +161,7 @@ RadarTab:CreateToggle({
                 Title = "ESP OFF",
                 Content = "Tracking stopped.",
                 Duration = 2,
-                Image = ICON_RADAR
+                Image = ICON_INFO
             })
         end
     end
@@ -285,7 +285,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Close Door Disabled!",
                 Duration = 2,
-                Image = ICON_RADAR
+                Image = ICON_INFO
             })
         end
     end
@@ -441,7 +441,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Turn off Alarm Enabled!",
                 Duration = 3,
-                Image = ICON_RADAR
+                Image = ICON_INFO
             })
         else
             stopAutoAlarm()
@@ -449,7 +449,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Turn off Alarm Disabled!",
                 Duration = 2,
-                Image = ICON_RADAR
+                Image = ICON_INFO
             })
         end
     end
