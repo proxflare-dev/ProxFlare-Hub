@@ -169,7 +169,16 @@ RadarTab:CreateToggle({
 
 RadarTab:CreateParagraph({
     Title = "Usage",
-    Content = "# When enabled it does the following...\n\nRED == FINAL PHASE | 3 |\nYELLOW == SECOND PHASE | 2 |\nGREEN == FIRST PHASE | 1 |\n\n# Turns on notification for alerts."
+    Content = "When enabled it does the following..."
+})
+RadarTab:CreateParagraph({
+    Content = "[ # ] RED ESP == FINAL STAGE | 3 |"
+})
+RadarTab:CreateParagraph({
+    Content = "[ # ] YELLOW ESP == SECOND STAGE | 2 |"
+})
+RadarTab:CreateParagraph({
+    Content = "[ # ] GREEN ESP == FIRST STAGE | 1 |"
 })
 
 --------------------------------------------------------------------
