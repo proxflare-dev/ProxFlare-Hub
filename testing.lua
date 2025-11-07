@@ -3,7 +3,6 @@
 
 -- SAFE RAYFIELD LOAD
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-repeat task.wait() until Rayfield and Rayfield.CreateWindow
 local Window = Rayfield:CreateWindow({
     Name = "Residence Massacre",
     LoadingTitle = "Loading...",
@@ -19,7 +18,7 @@ local Window = Rayfield:CreateWindow({
 -- // ICONS
 --------------------------------------------------------------------
 local ICON_INFO    = 6031094667   -- Info
-local ICON_RADAR   = rbxassetid://6031094667   -- Warning
+local ICON_RADAR   = 6031094667   -- Warning
 local ICON_SUCCESS = 6031094667   -- Checkmark
 
 --------------------------------------------------------------------
