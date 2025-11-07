@@ -18,7 +18,7 @@ local Window = Rayfield:CreateWindow({
 -- // ICONS
 --------------------------------------------------------------------
 local ICON_INFO    = 6031094667   -- Info
-local ICON_RADAR   = 6035067841   -- Warning
+local ICON_RADAR   = rbxassetid://6031094667   -- Warning
 local ICON_SUCCESS = 6031094667   -- Checkmark
 
 --------------------------------------------------------------------
