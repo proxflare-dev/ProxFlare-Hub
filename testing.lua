@@ -172,11 +172,21 @@ RadarTab:CreateParagraph({
     Content = "When enabled it does the following..."
 })
 
-RadarTab:CreateSection("Features")
+RadarTab:CreateParagraph({
+    Title = "Usage",
+    Content = "When enabled it does the following..."
+})
 
-RadarTab:CreateParagraph({ Content = "ESP: Tracks monster progress with color alerts" })
-RadarTab:CreateParagraph({ Content = "Auto Door: Closes automatically at Stage 3" })
-RadarTab:CreateParagraph({ Content = "Teddy Bear: Auto-clicks every 8 seconds" })
+RadarTab:CreateParagraph({
+    Title = "Usage",
+    Content = "When enabled it does the following..."
+})
+
+RadarTab:CreateParagraph({
+    Title = "Usage",
+    Content = "When enabled it does the following..."
+})
+
 --------------------------------------------------------------------
 -- // AUTOMATIC TAB
 --------------------------------------------------------------------
