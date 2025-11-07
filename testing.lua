@@ -460,187 +460,144 @@ AutoTab:CreateParagraph({
 })
 
 --------------------------------------------------------------------
--- // TEDDY BEAR AUTO-CLICK — 8s INTERVAL + WAITS FOR DOOR/ALARM SUCCESS
+-- // TEDDY BEAR AUTO-CLICK — 7s + MANUAL BUTTON
 --------------------------------------------------------------------
-AutoTab:CreateSection("[ # ] Teddy Bear")
+AutoTab:CreateSection("Teddy Bear")
 
-local TeddyAutoEnabled = false
-local teddyLoop = nil
+-- ICONS (use your existing ones or define here)
+local ICON_SUCCESS = 6031094667  -- Checkmark
+local ICON_RADAR   = 4483362458  -- Warning
+
+-- TEDDY POSITION
 local TEDDY_POS = Vector3.new(-8.735569953918457, 5.000003337860107, -8.874606132507324)
 
--- Track if waiting for Door/Alarm success
-local waitingForSuccess = false
-local successConn = nil
+-- FLAGS (for future Door/Alarm sync)
+local isDoorActive = false
+local isAlarmActive = false
 
--- Connect listener for SUCCESS notifications
-local function connectSuccessListener()
-    if successConn then successConn:Disconnect() end
-    successConn = Rayfield.Notifications.ChildAdded:Connect(function(notif)
-        if notif.Title == "SUCCESS" and (
-            notif.Content == "Door was automatically closed." or
-            notif.Content == "Alarm was automatically turned off."
-        ) then
-            waitingForSuccess = false
-            if successConn then successConn:Disconnect() end
-            successConn = nil
-        end
-    end)
-end
+-- AUTO LOOP
+local TeddyEnabled = false
+local teddyLoop = nil
 
--- Safety: No monster at stage 3
-local function isSafeToAct()
+-- SAFETY CHECK
+local function isSafe()
+    -- Not hiding
+    local bed = workspace:FindFirstChild("Bed")
+    local hidden = bed and bed:FindFirstChild("Hidden")
+    if hidden and hidden:IsA("BoolValue") and hidden.Value then return false end
+
+    -- No Stage 3 breach
     local monster = workspace:FindFirstChild("Monster")
-    if not monster then return true end
-    for _, name in {"Door", "Vent", "Window"} do
-        local model = monster:FindFirstChild(name)
-        if model then
-            local prog = model:FindFirstChild("Progress")
-            if prog and prog:IsA("NumberValue") and prog.Value == 3 then
-                return false
+    if monster then
+        for _, name in {"Door", "Vent", "Window"} do
+            local model = monster:FindFirstChild(name)
+            if model then
+                local prog = model:FindFirstChild("Progress")
+                if prog and prog:IsA("NumberValue") and prog.Value == 3 then
+                    return false
+                end
             end
         end
     end
+
+    -- No conflict with Door/Alarm
+    if isDoorActive or isAlarmActive then return false end
+
     return true
 end
 
-local function waitForSafety()
-    repeat task.wait(0.2) until isSafeToAct() or not TeddyAutoEnabled
-end
+-- CLICK FUNCTION
+local function clickTeddy()
+    if not isSafe() then
+        Rayfield:Notify({
+            Title = "BLOCKED",
+            Content = "Cannot click Teddy: Unsafe",
+            Duration = 2,
+            Image = ICON_RADAR
+        })
+        return
+    end
 
-local function clickTeddyBear()
+    local teddy = workspace:FindFirstChild("Teddy bear")
+    local detector = teddy and teddy:FindFirstChild("ClickDetector")
+    if not teddy or not detector then
+        Rayfield:Notify({
+            Title = "ERROR",
+            Content = "Teddy not found!",
+            Duration = 3,
+            Image = ICON_RADAR
+        })
+        return
+    end
+
     local player = game.Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Hiding check
-    local bed = workspace:FindFirstChild("Bed")
-    local hidden = bed and bed:FindFirstChild("Hidden")
-    local isHiding = hidden and hidden:IsA("BoolValue") and hidden.Value
-
-    -- Door stage 3 check
-    local monster = workspace:FindFirstChild("Monster")
-    local doorModel = monster and monster:FindFirstChild("Door")
-    local doorProgress = doorModel and doorModel:FindFirstChild("Progress")
-    local doorAtStage3 = doorProgress and doorProgress:IsA("NumberValue") and doorProgress.Value == 3
-
-    -- Skip if hiding + door at 3
-    if isHiding and doorAtStage3 then
-        task.wait(1)
-        return
-    end
-
-    -- Wait until exit bed
-    if isHiding then
-        repeat task.wait() until (not hidden.Value) or not TeddyAutoEnabled
-        if not TeddyAutoEnabled then return end
-    end
-
-    -- Wait for Door/Alarm success
-    if waitingForSuccess then
-        repeat task.wait(0.1) until not waitingForSuccess or not TeddyAutoEnabled
-        if not TeddyAutoEnabled then return end
-    end
-
-    -- Wait for monster safety
-    if not isSafeToAct() then
-        waitForSafety()
-        if not TeddyAutoEnabled then return end
-    end
-
-    -- Teddy click
-    local teddy = workspace:FindFirstChild("Teddy bear")
-    local clickDetector = teddy and teddy:FindFirstChild("ClickDetector")
-    if not teddy or not clickDetector then return end
-
-    local originalCFrame = hrp.CFrame
+    local oldPos = hrp.CFrame
     hrp.CFrame = CFrame.new(TEDDY_POS)
-    task.wait(0.3)
-    pcall(fireclickdetector, clickDetector)
-    task.wait(0.1)
-    hrp.CFrame = originalCFrame
+    task.wait(0.5)  -- Stabilize
+    for i = 1, 3 do
+        pcall(fireclickdetector, detector, 0)
+        task.wait(0.1)
+    end
+    hrp.CFrame = oldPos
     task.wait(0.1)
 
     Rayfield:Notify({
         Title = "SUCCESS",
-        Content = "Teddy Bear clicked.",
-        Duration = 3
+        Content = "Teddy Bear clicked!",
+        Duration = 3,
+        Image = ICON_SUCCESS
     })
 end
 
-local function startTeddyLoop()
-    if teddyLoop then return end
-    teddyLoop = task.spawn(function()
-        while TeddyAutoEnabled do
-            waitingForSuccess = false
-
-            -- Detect if Door/Alarm is active
-            local monster = workspace:FindFirstChild("Monster")
-            local radio = workspace:FindFirstChild("Radio")
-            local alarmPlaying = radio and radio:FindFirstChild("Main") and radio.Main:FindFirstChild("Alarm") and radio.Main.Alarm.IsPlaying
-
-            local anyStage3 = false
-            if monster then
-                for _, name in {"Door", "Vent", "Window"} do
-                    local model = monster:FindFirstChild(name)
-                    if model then
-                        local prog = model:FindFirstChild("Progress")
-                        if prog and prog:IsA("NumberValue") and prog.Value == 3 then
-                            anyStage3 = true
-                            break
-                        end
-                    end
-                end
-            end
-
-            if anyStage3 or alarmPlaying then
-                waitingForSuccess = true
-                connectSuccessListener()
-            end
-
-            clickTeddyBear()
-            task.wait(8)  -- 8 seconds
-        end
-    end)
-end
-
-local function stopTeddyLoop()
-    TeddyAutoEnabled = false
-    waitingForSuccess = false
-    if teddyLoop then task.cancel(teddyLoop); teddyLoop = nil end
-    if successConn then successConn:Disconnect(); successConn = nil end
-end
-
+-- AUTO TOGGLE
 AutoTab:CreateToggle({
-    Name = "Auto Teddy Bear",
+    Name = "Auto Teddy Bear (7s)",
     CurrentValue = false,
-    Flag = "AutoTeddy",
     Callback = function(v)
-        TeddyAutoEnabled = v
+        TeddyEnabled = v
         if v then
-            stopTeddyLoop()
-            startTeddyLoop()
+            if teddyLoop then task.cancel(teddyLoop) end
+            teddyLoop = task.spawn(function()
+                while TeddyEnabled do
+                    clickTeddy()
+                    task.wait(7)
+                end
+            end)
             Rayfield:Notify({
-                Title = "WARNING",
-                Content = "Auto Teddy Bear Enabled! (Waits for Door/Alarm)",
-                Duration = 3
+                Title = "ON",
+                Content = "Auto Teddy Enabled (7s)",
+                Duration = 3,
+                Image = ICON_RADAR
             })
         else
-            stopTeddyLoop()
+            if teddyLoop then task.cancel(teddyLoop); teddyLoop = nil end
             Rayfield:Notify({
-                Title = "WARNING",
-                Content = "Auto Teddy Bear Disabled!",
-                Duration = 2
+                Title = "OFF",
+                Content = "Auto Teddy Disabled",
+                Duration = 2,
+                Image = ICON_RADAR
             })
         end
     end
 })
 
-AutoTab:CreateSection("Usage")  -- ← REQUIRED BEFORE Paragraph
+-- MANUAL BUTTON
+AutoTab:CreateButton({
+    Name = "Click Teddy NOW",
+    Callback = function()
+        clickTeddy()
+    end
+})
 
+-- INFO
+AutoTab:CreateSection("Info")
 AutoTab:CreateParagraph({
-    Title = "How It Works",
-    Content = "Clicks Teddy Bear every 8s when safe.\nWaits for Door/Alarm to finish.\nSkips if hiding + Door Stage 3."
+    Title = "Teddy Auto",
+    Content = "• Auto: Every 7 seconds when safe\n• Manual: Click 'NOW' to test\n• Skips if hiding or monster at Stage 3"
 })
 
 --------------------------------------------------------------------
