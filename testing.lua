@@ -172,15 +172,15 @@ RadarTab:CreateParagraph({
     Content = "When enabled it does the following..."
 })
 RadarTab:CreateParagraph({
-    Title = "",
+    Title = " ",
     Content = "[ # ] RED ESP == FINAL STAGE | 3 |"
 })
 RadarTab:CreateParagraph({
-    Title = "",
+    Title = " ",
     Content = "[ # ] YELLOW ESP == SECOND STAGE | 2 |"
 })
 RadarTab:CreateParagraph({
-    Title = "",
+    Title = " ",
     Content = "[ # ] GREEN ESP == FIRST STAGE | 1 |"
 })
 
