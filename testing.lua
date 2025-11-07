@@ -1,8 +1,21 @@
 -- // RESIDENCE MASSACRE — FULL SCRIPT v1.2 (NO SPAM + INSTANT RETURN)
 -- INFO + MONSTER RADAR + AUTOMATIC — FINAL & LAG-FREE
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-task.wait()
+-- SAFE RAYFIELD LOAD
+local Rayfield
+local success, err = pcall(function()
+    Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+end)
+
+if not success or not Rayfield then
+    error("Rayfield failed: " .. tostring(err))
+    return
+end
+
+-- WAIT UNTIL FULLY LOADED
+repeat task.wait() until Rayfield and Rayfield.CreateWindow
+
+print("Rayfield ready!")
 local Window = Rayfield:CreateWindow({
     Name = "Residence Massacre",
     LoadingTitle = "Loading...",
