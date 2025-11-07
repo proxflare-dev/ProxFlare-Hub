@@ -2,7 +2,7 @@
 -- INFO + MONSTER RADAR + AUTOMATIC — FINAL & LAG-FREE
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
+task.wait()
 local Window = Rayfield:CreateWindow({
     Name = "Residence Massacre",
     LoadingTitle = "Loading...",
