@@ -168,22 +168,19 @@ RadarTab:CreateToggle({
 })
 
 RadarTab:CreateParagraph({
-    Title = "",
+    Title = "Usage",
     Content = "When enabled it does the following..."
 })
 
 RadarTab:CreateParagraph({
-    Title = "",
     Content = "When enabled it does the following..."
 })
 
 RadarTab:CreateParagraph({
-    Title = "",
     Content = "When enabled it does the following..."
 })
 
 RadarTab:CreateParagraph({
-    Title = "",
     Content = "When enabled it does the following..."
 })
 
