@@ -18,7 +18,7 @@ local Window = Rayfield:CreateWindow({
 -- // ICONS
 --------------------------------------------------------------------
 local ICON_INFO    = 6031094667   -- Info
-local ICON_RADAR   = 4483362458   -- Warning
+local ICON_RADAR   = 6035067841   -- Warning
 local ICON_SUCCESS = 6031094667   -- Checkmark
 
 --------------------------------------------------------------------
@@ -150,16 +150,16 @@ RadarTab:CreateToggle({
             clearESP()
             setupESP()
             Rayfield:Notify({
-                Title = "ESP ACTIVE",
-                Content = "Tracking all sources. Closet = Red at Stage 1.",
+                Title = "WARNING",
+                Content = "Monster ESP + Notification Enabled!",
                 Duration = 4,
-                Image = ICON_INFO
+                Image = ICON_RADAR
             })
         else
             clearESP()
             Rayfield:Notify({
-                Title = "ESP OFF",
-                Content = "Tracking stopped.",
+                Title = "WARNING",
+                Content = "Monster ESP + Notification Disabled!",
                 Duration = 2,
                 Image = ICON_INFO
             })
@@ -285,7 +285,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Close Door Disabled!",
                 Duration = 2,
-                Image = ICON_INFO
+                Image = ICON_RADAR
             })
         end
     end
@@ -441,7 +441,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Turn off Alarm Enabled!",
                 Duration = 3,
-                Image = ICON_INFO
+                Image = ICON_RADAR
             })
         else
             stopAutoAlarm()
@@ -449,7 +449,7 @@ AutoTab:CreateToggle({
                 Title = "WARNING",
                 Content = "Auto Turn off Alarm Disabled!",
                 Duration = 2,
-                Image = ICON_INFO
+                Image = ICON_RADAR
             })
         end
     end
@@ -510,8 +510,8 @@ end
 local function clickTeddy()
     if not isSafe() then
         Rayfield:Notify({
-            Title = "BLOCKED",
-            Content = "Cannot click Teddy: Unsafe",
+            Title = "WARNING",
+            Content = "Cannot click Teddy: Unsafe Environment Detected!",
             Duration = 2,
             Image = ICON_RADAR
         })
@@ -568,16 +568,16 @@ AutoTab:CreateToggle({
                 end
             end)
             Rayfield:Notify({
-                Title = "ON",
-                Content = "Auto Teddy Enabled (7s)",
+                Title = "WARNING",
+                Content = "Auto Teddy Enabled!",
                 Duration = 3,
                 Image = ICON_RADAR
             })
         else
             if teddyLoop then task.cancel(teddyLoop); teddyLoop = nil end
             Rayfield:Notify({
-                Title = "OFF",
-                Content = "Auto Teddy Disabled",
+                Title = "WARNING",
+                Content = "Auto Teddy Disabled!",
                 Duration = 2,
                 Image = ICON_RADAR
             })
@@ -587,17 +587,14 @@ AutoTab:CreateToggle({
 
 -- MANUAL BUTTON
 AutoTab:CreateButton({
-    Name = "Click Teddy NOW",
+    Name = "Click Teddy",
     Callback = function()
         clickTeddy()
     end
 })
-
--- INFO
-AutoTab:CreateSection("Info")
 AutoTab:CreateParagraph({
-    Title = "Teddy Auto",
-    Content = "• Auto: Every 7 seconds when safe\n• Manual: Click 'NOW' to test\n• Skips if hiding or monster at Stage 3"
+    Title = "Usage",
+    Content = "Automatically clicks Teddy when it's safe. / Manually clicks Teddy."
 })
 
 --------------------------------------------------------------------
@@ -605,7 +602,7 @@ AutoTab:CreateParagraph({
 --------------------------------------------------------------------
 Rayfield:Notify({
     Title = "SUCCESS",
-    Content = "Residence Massacre Script v1.2 — No Spam, Instant Return",
+    Content = "Core Memory v1.2 -- ProxFlare Hub Loaded Successfully!",
     Duration = 6,
     Image = ICON_SUCCESS
 })
