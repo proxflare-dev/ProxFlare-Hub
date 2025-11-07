@@ -1,402 +1,595 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- // RESIDENCE MASSACRE — FULL SCRIPT v1.2 (NO SPAM + INSTANT RETURN)
+-- INFO + MONSTER RADAR + AUTOMATIC — FINAL & LAG-FREE
 
+-- SAFE RAYFIELD LOAD
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
-    Name = "Residence Massacre",
-    LoadingTitle = "Loading...",
-    LoadingSubtitle = "By Grok",
-    ConfigurationSaving = {Enabled = true, FolderName = "RM", FileName = "Config"}
+    Name = "Core Memory v1.2 \\ ProxFlare Hub",
+    LoadingTitle = "Residence Massacre",
+    LoadingSubtitle = "by Tea's Studio",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "RMConfig",
+        FileName = "Settings"
+    }
 })
 
 --------------------------------------------------------------------
--- // ICONS (SAFE & WORKING)
+-- // ICONS
 --------------------------------------------------------------------
-local ICON_RADAR   = 4483362458  -- Warning / Alert
-local ICON_SUCCESS = 6031094667  -- Checkmark
-
---------------------------------------------------------------------
--- // TABS
---------------------------------------------------------------------
-local InfoTab = Window:CreateTab("Info")
-local RadarTab = Window:CreateTab("Radar")
-local AutoTab = Window:CreateTab("Auto")
+local ICON_INFO    = 6031094667   -- Info
+local ICON_RADAR   = 6031094667   -- Warning
+local ICON_SUCCESS = 6031094667   -- Checkmark
 
 --------------------------------------------------------------------
 -- // INFO TAB
 --------------------------------------------------------------------
+local InfoTab = Window:CreateTab("Info", ICON_INFO)
+
 InfoTab:CreateSection("About")
+
 InfoTab:CreateParagraph({
-    Title = "Residence Massacre Spirit Helper",
-    Content = "Full ESP + Auto Door + Alarm + Teddy\n\n- Closet = Red at Stage 1\n- All auto features wait for safety\n- Icons restored\n- v3.0 - FINAL & PERFECT"
+    Title = "Residence Massacre \"Spirit Helper\"",
+    Content = "A clean, modular script built step by step.\n\nFeatures:\n# ESP + Alerts (Door/Closet/Vent/Window)\n# Closet = Red at Stage 1\n# Auto Close Door (No Spam + Instant Return)"
 })
 
 InfoTab:CreateParagraph({
     Title = "Status",
-    Content = "All systems online. Icons working. Teddy clicks 100%."
+    Content = "All systems online. Lag-free."
 })
 
 --------------------------------------------------------------------
--- // RADAR TAB - ESP + ALERTS
+-- // MONSTER RADAR TAB
 --------------------------------------------------------------------
-RadarTab:CreateSection("Monster ESP + Alerts")
+local RadarTab = Window:CreateTab("Monster Radar", ICON_RADAR)
 
+RadarTab:CreateSection("[ # ] Door / Closet / Ventilation / Window")
+
+-- ESP + Notification Toggle
 local ESPEnabled = false
-local highlights = {}
 local connections = {}
+local highlights = {}
+
+-- Standard Stage Colors
+local STAGE_COLORS = {
+    [1] = { Outline = Color3.fromRGB(0, 255, 0),   Fill = Color3.fromRGB(100, 255, 100) },  -- Green
+    [2] = { Outline = Color3.fromRGB(255, 255, 0), Fill = Color3.fromRGB(255, 255, 150) },  -- Yellow
+    [3] = { Outline = Color3.fromRGB(255, 0, 0),   Fill = Color3.fromRGB(255, 100, 100) }   -- Red
+}
+
+-- Closet Special: Stage 1 = RED
+local CLOSET_SPECIAL = {
+    [1] = { Outline = Color3.fromRGB(255, 0, 0),   Fill = Color3.fromRGB(255, 100, 100) }
+}
+
+local function getStageColor(modelName, stage)
+    if modelName == "Closet" and CLOSET_SPECIAL[stage] then
+        return CLOSET_SPECIAL[stage]
+    end
+    return STAGE_COLORS[stage] or STAGE_COLORS[1]
+end
 
 local function setupESP()
-    local monster = workspace:FindFirstChild("Monster")
-    if not monster then return end
+    local monsterFolder = workspace:FindFirstChild("Monster")
+    if not monsterFolder then warn("Monster folder not found!") return end
 
-    for _, name in {"Door", "Closet", "Vent", "Window"} do
-        local model = monster:FindFirstChild(name)
-        if not model or not model:FindFirstChild("Progress") then continue end
+    local models = {"Door", "Closet", "Vent", "Window"}
+    for _, modelName in ipairs(models) do
+        local model = monsterFolder:FindFirstChild(modelName)
+        if not model or not model:IsA("Model") then continue end
 
-        local h = Instance.new("Highlight")
-        h.Parent = model
-        h.Adornee = model
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.FillTransparency = 0.5
-        h.OutlineTransparency = 0
-        highlights[model] = h
+        local progress = model:FindFirstChild("Progress")
+        if not progress or not progress:IsA("NumberValue") then continue end
 
-        local lastStage = model.Progress.Value
-        local conn = model.Progress:GetPropertyChangedSignal("Value"):Connect(function()
-            local stage = model.Progress.Value
-            if stage == lastStage then return end
+        local lastValue = progress.Value
 
-            if stage > 0 and lastStage == 0 then
+        local conn = progress:GetPropertyChangedSignal("Value"):Connect(function()
+            local newValue = progress.Value
+            if newValue == lastValue or not ESPEnabled then return end
+
+            if (lastValue == 0 and newValue == 1) or
+               (lastValue == 1 and newValue == 2) or
+               (lastValue == 2 and newValue == 3) then
+
+                local stage = newValue
+                local colors = getStageColor(modelName, stage)
+
                 Rayfield:Notify({
-                    Title = name:upper() .. " ALERT",
-                    Content = "Stage " .. stage .. " started!",
+                    Title = modelName:upper() .. " ALERT",
+                    Content = "Stage " .. stage .. " detected!",
                     Duration = 4,
-                    Image = ICON_RADAR
+                    Image = ICON_INFO
                 })
-            end
 
-            if stage == 1 then
-                h.OutlineColor = (name == "Closet") and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
-                h.FillColor = (name == "Closet") and Color3.fromRGB(255,100,100) or Color3.fromRGB(100,255,100)
-            elseif stage == 2 then
-                h.OutlineColor = Color3.fromRGB(255,255,0)
-                h.FillColor = Color3.fromRGB(255,255,150)
-            elseif stage == 3 then
-                h.OutlineColor = Color3.fromRGB(255,0,0)
-                h.FillColor = Color3.fromRGB(255,100,100)
-            elseif stage == 0 and lastStage > 0 then
-                Rayfield:Notify({
-                    Title = name:upper() .. " SAFE",
-                    Content = "Stage reset.",
-                    Duration = 2,
-                    Image = ICON_SUCCESS
-                })
+                local h = highlights[model]
+                if not h then
+                    h = Instance.new("Highlight")
+                    h.Parent = model
+                    h.Adornee = model
+                    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    h.FillTransparency = 0.5
+                    h.OutlineTransparency = 0
+                    highlights[model] = h
+                end
+
+                h.OutlineColor = colors.Outline
+                h.FillColor = colors.Fill
+
+            elseif (lastValue == 1 or lastValue == 2 or lastValue == 3) and newValue == 0 then
+                local h = highlights[model]
                 if h and h.Parent then h:Destroy() end
                 highlights[model] = nil
             end
 
-            lastStage = stage
+            lastValue = newValue
         end)
 
         table.insert(connections, conn)
     end
 end
 
+local function clearESP()
+    for _, conn in ipairs(connections) do
+        if conn.Connected then conn:Disconnect() end
+    end
+    connections = {}
+
+    for model, h in pairs(highlights) do
+        if h and h.Parent then h:Destroy() end
+    end
+    highlights = {}
+end
+
 RadarTab:CreateToggle({
-    Name = "Enable ESP + Alerts",
+    Name = "Enable ESP + Notification",
     CurrentValue = false,
+    Flag = "ESPNotify",
     Callback = function(v)
         ESPEnabled = v
         if v then
-            for _, c in connections do if c.Connected then c:Disconnect() end end
-            connections = {}
-            for _, h in highlights do if h then h:Destroy() end end
-            highlights = {}
+            clearESP()
             setupESP()
-            Rayfield:Notify({Title = "ESP ACTIVE", Content = "Tracking all sources", Duration = 4, Image = ICON_RADAR})
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Monster ESP + Notification Enabled!",
+                Duration = 4,
+                Image = ICON_RADAR
+            })
         else
-            for _, c in connections do if c.Connected then c:Disconnect() end end
-            connections = {}
-            for _, h in highlights do if h then h:Destroy() end end
-            highlights = {}
-            Rayfield:Notify({Title = "ESP OFF", Content = "Stopped", Duration = 2, Image = ICON_SUCCESS})
+            clearESP()
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Monster ESP + Notification Disabled!",
+                Duration = 2,
+                Image = ICON_INFO
+            })
         end
     end
 })
 
-RadarTab:CreateSection("Legend")
 RadarTab:CreateParagraph({
-    Title = "Color Guide",
-    Content = "GREEN = Stage 1\nYELLOW = Stage 2\nRED = Stage 3\n\nCloset = RED even at Stage 1"
+    Title = "Usage",
+    Content = "When enabled it does the following..."
+})
+
+RadarTab:CreateParagraph({
+    Content = "When enabled it does the following..."
+})
+
+RadarTab:CreateParagraph({
+    Content = "When enabled it does the following..."
+})
+
+RadarTab:CreateParagraph({
+    Content = "When enabled it does the following..."
 })
 
 --------------------------------------------------------------------
--- // AUTO TAB
+-- // AUTOMATIC TAB
 --------------------------------------------------------------------
-AutoTab:CreateSection("Auto Features")
+local AutoTab = Window:CreateTab("Automatic", ICON_SUCCESS)
 
--- AUTO DOOR
-local AutoDoor = false
-local doorLoop = nil
+AutoTab:CreateSection("[ # ] Door")
 
-AutoTab:CreateToggle({
-    Name = "Auto Close Door",
-    CurrentValue = false,
-    Callback = function(v)
-        AutoDoor = v
-        if v then
-            doorLoop = task.spawn(function()
-                while AutoDoor do
-                    local bed = workspace:FindFirstChild("Bed")
-                    local door = workspace:FindFirstChild("Door")
-                    local mdoor = workspace.Monster and workspace.Monster:FindFirstChild("Door")
-                    if bed and door and mdoor and bed:FindFirstChild("Hidden") and mdoor:FindFirstChild("Progress") then
-                        if bed.Hidden.Value and mdoor.Progress.Value == 3 then
-                            repeat task.wait() until not bed.Hidden.Value or not AutoDoor
-                            if not AutoDoor then break end
-                            task.wait(0.7)
+local AutoCloseEnabled = false
+local autoCloseConn = nil
+local hasTriggered = false  -- Prevents spam
 
-                            local char = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
-                            local hrp = char:FindFirstChild("HumanoidRootPart")
-                            if not hrp then break end
+-- FINAL TELEPORT POSITION
+local DOOR_POS = Vector3.new(15.509483337402344, 5.000003337860107, -2.6445071697235107)
 
-                            local orig = hrp.CFrame
-                            hrp.CFrame = CFrame.new(15.509, 5, -2.644)
-                            task.wait(0.5)
-                            local cd = door:FindFirstChild("Detector") and door.Detector:FindFirstChild("ClickDetector")
-                            if cd then for i=1,3 do pcall(fireclickdetector, cd, 0) task.wait(0.1) end end
-                            task.wait(0.6)
-                            hrp.CFrame = orig
-                            Rayfield:Notify({Title = "SUCCESS", Content = "Door was automatically closed.", Duration = 4, Image = ICON_SUCCESS})
-                            task.wait(2)
-                        end
-                    end
-                    task.wait(0.1)
+local function startAutoClose()
+    if autoCloseConn then return end
+
+    autoCloseConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not AutoCloseEnabled then return end
+
+        local bed = workspace:FindFirstChild("Bed")
+        local doorModel = workspace:FindFirstChild("Door")
+        local monsterDoor = workspace:FindFirstChild("Monster") and workspace.Monster:FindFirstChild("Door")
+
+        if not bed or not doorModel or not monsterDoor then return end
+
+        local hidden = bed:FindFirstChild("Hidden")
+        local progress = monsterDoor:FindFirstChild("Progress")
+        if not hidden or not hidden:IsA("BoolValue") or not progress or not progress:IsA("NumberValue") then return end
+
+        if hidden.Value == true and progress.Value == 3 and not hasTriggered then
+            hasTriggered = true  -- Block spam
+
+            -- Wait for player to exit bed
+            repeat task.wait() until hidden.Value == false or not AutoCloseEnabled
+            if not AutoCloseEnabled then hasTriggered = false; return end
+
+            task.wait(0.7)
+
+            local player = game.Players.LocalPlayer
+            local char = player.Character or player.CharacterAdded:Wait()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if not hrp then hasTriggered = false; return end
+
+            local originalCFrame = hrp.CFrame
+
+            -- TELEPORT TO DOOR
+            hrp.CFrame = CFrame.new(DOOR_POS)
+            task.wait(0.3)
+
+            -- CLICK DETECTOR
+            local clickDetector = doorModel:FindFirstChild("Detector") 
+                and doorModel.Detector:FindFirstChild("ClickDetector")
+
+            if clickDetector then
+                for i = 1, 3 do
+                    pcall(fireclickdetector, clickDetector)
+                    task.wait(0.05)
                 end
+            end
+
+            task.wait(0.6)
+
+            -- TELEPORT BACK + SUCCESS NOTIFY
+            if hrp and hrp.Parent then
+                hrp.CFrame = originalCFrame
+                task.wait(0.1)
+
+                Rayfield:Notify({
+                    Title = "SUCCESS",
+                    Content = "Door was automatically closed.",
+                    Duration = 4,
+                    Image = ICON_SUCCESS
+                })
+            end
+
+            -- Reset trigger after full cycle
+            task.delay(2, function()
+                hasTriggered = false
             end)
-        else
-            if doorLoop then task.cancel(doorLoop) end
-        end
-    end
-})
-
--- AUTO ALARM
-local AutoAlarm = false
-local alarmLoop = nil
-local waitingForDoor = false
-
-AutoTab:CreateToggle({
-    Name = "Auto Turn Off Alarm",
-    CurrentValue = false,
-    Callback = function(v)
-        AutoAlarm = v
-        if v then
-            alarmLoop = task.spawn(function()
-                while AutoAlarm do
-                    local radio = workspace:FindFirstChild("Radio")
-                    if radio and radio:FindFirstChild("Main") and radio.Main:FindFirstChild("Alarm") and radio.Main.Alarm.IsPlaying then
-                        local bed = workspace:FindFirstChild("Bed")
-                        if bed and bed:FindFirstChild("Hidden") and bed.Hidden.Value then
-                            repeat task.wait() until not bed.Hidden.Value or not AutoAlarm
-                            task.wait(0.4)
-                        end
-
-                        local mdoor = workspace.Monster and workspace.Monster:FindFirstChild("Door")
-                        if mdoor and mdoor:FindFirstChild("Progress") and mdoor.Progress.Value == 3 then
-                            waitingForDoor = true
-                            local conn; conn = Rayfield.Notifications.ChildAdded:Connect(function(n)
-                                if n.Title == "SUCCESS" and n.Content == "Door was automatically closed." then
-                                    waitingForDoor = false
-                                    if conn then conn:Disconnect() end
-                                end
-                            end)
-                            repeat task.wait() until not waitingForDoor or not AutoAlarm
-                            if conn then conn:Disconnect() end
-                        end
-
-                        local char = game.Players.LocalPlayer.Character or game.Players.LocalPlayer.CharacterAdded:Wait()
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if not hrp then break end
-
-                        local orig = hrp.CFrame
-                        hrp.CFrame = CFrame.new(-10.691, 5, 17.103)
-                        task.wait(0.5)
-                        local cd = radio:FindFirstChild("ClickDetector")
-                        if cd then for i=1,3 do pcall(fireclickdetector, cd, 0) task.wait(0.1) end end
-                        task.wait(0.6)
-                        hrp.CFrame = orig
-                        Rayfield:Notify({Title = "SUCCESS", Content = "Alarm was automatically turned off.", Duration = 4, Image = ICON_SUCCESS})
-                        task.wait(3)
-                    end
-                    task.wait(0.5)
-                end
-            end)
-        else
-            if alarmLoop then task.cancel(alarmLoop) end
-        end
-    end
-})
-
---------------------------------------------------------------------
--- // TEDDY BEAR AUTO-CLICK — BULLETPROOF + ICONS
---------------------------------------------------------------------
-AutoTab:CreateSection("[ # ] Teddy Bear")
-
-local TeddyAutoEnabled = false
-local teddyLoop = nil
-local TEDDY_POS = Vector3.new(-8.735569953918457, 5.000003337860107, -8.874606132507324)
-
-local waitingForSuccess = false
-local successConn = nil
-
-local function connectSuccessListener()
-    if successConn then successConn:Disconnect() end
-    successConn = Rayfield.Notifications.ChildAdded:Connect(function(notif)
-        if notif.Title == "SUCCESS" and (
-            notif.Content == "Door was automatically closed." or
-            notif.Content == "Alarm was automatically turned off."
-        ) then
-            waitingForSuccess = false
-            if successConn then successConn:Disconnect() end
-            successConn = nil
         end
     end)
 end
 
-local function isSafeToAct()
-    local monster = workspace:FindFirstChild("Monster")
-    if not monster then return true end
-    for _, name in {"Door", "Vent", "Window"} do
-        local model = monster:FindFirstChild(name)
-        if model and model:FindFirstChild("Progress") and model.Progress:IsA("NumberValue") and model.Progress.Value == 3 then
-            return false
+local function stopAutoClose()
+    if autoCloseConn then
+        autoCloseConn:Disconnect()
+        autoCloseConn = nil
+    end
+    hasTriggered = false
+end
+
+AutoTab:CreateToggle({
+    Name = "Auto Close Door",
+    CurrentValue = false,
+    Flag = "AutoClose",
+    Callback = function(v)
+        AutoCloseEnabled = v
+        if v then
+            stopAutoClose()
+            startAutoClose()
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Auto Close Door Enabled!",
+                Duration = 3,
+                Image = ICON_RADAR
+            })
+        else
+            stopAutoClose()
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Auto Close Door Disabled!",
+                Duration = 2,
+                Image = ICON_RADAR
+            })
         end
     end
+})
+AutoTab:CreateParagraph({
+    Title = "Usage",
+    Content = "Automatically closes door upon enabling the toggle above."
+})
+
+--------------------------------------------------------------------
+-- // AUTOMATIC TAB — AUTO TURN OFF ALARM (FINAL + SAFETY)
+--------------------------------------------------------------------
+AutoTab:CreateSection("[ # ] Alarm")
+
+local AutoAlarmEnabled = false
+local alarmConn = nil
+local hasTriggered = false
+
+local ALARM_POS = Vector3.new(-10.691389083862305, 5.000003337860107, 17.10317611694336)
+
+local function startAutoAlarm()
+    if alarmConn then return end
+
+    alarmConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not AutoAlarmEnabled or hasTriggered then return end
+
+        local radio = workspace:FindFirstChild("Radio")
+        if not radio then return end
+
+        local main = radio:FindFirstChild("Main")
+        if not main then return end
+
+        local alarmSound = main:FindFirstChild("Alarm")
+        local clickDetector = radio:FindFirstChild("ClickDetector")
+
+        if not alarmSound or not alarmSound:IsA("Sound") or not clickDetector then return end
+
+        if not alarmSound.IsPlaying then return end
+
+        hasTriggered = true
+
+        -- === IF: Player in Bed ===
+        local bed = workspace:FindFirstChild("Bed")
+        if bed then
+            local hidden = bed:FindFirstChild("Hidden")
+            if hidden and hidden:IsA("BoolValue") and hidden.Value == true then
+                repeat task.wait() until hidden.Value == false or not AutoAlarmEnabled
+                if not AutoAlarmEnabled then hasTriggered = false; return end
+                task.wait(0.4)
+            end
+        end
+
+        -- === IF: Door at Stage 3 → Wait for Auto Close Door SUCCESS ===
+        local monsterFolder = workspace:FindFirstChild("Monster")
+        if monsterFolder then
+            local doorModel = monsterFolder:FindFirstChild("Door")
+            if doorModel then
+                local progress = doorModel:FindFirstChild("Progress")
+                if progress and progress:IsA("NumberValue") and progress.Value == 3 then
+                    local successReceived = false
+                    local notifyConn
+                    notifyConn = Rayfield.Notifications.ChildAdded:Connect(function(notif)
+                        if notif.Title == "SUCCESS" and notif.Content == "Door was automatically closed." then
+                            successReceived = true
+                            if notifyConn then notifyConn:Disconnect() end
+                        end
+                    end)
+
+                    repeat task.wait() until successReceived or not AutoAlarmEnabled
+                    if notifyConn then notifyConn:Disconnect() end
+                    if not AutoAlarmEnabled then hasTriggered = false; return end
+                end
+            end
+        end
+
+        -- === SAFETY: Wait for Door, Vent, Window Progress = 0 ===
+        if monsterFolder then
+            local models = {"Door", "Vent", "Window"}
+            local allSafe = false
+
+            repeat
+                allSafe = true
+                for _, name in ipairs(models) do
+                    local model = monsterFolder:FindFirstChild(name)
+                    if model then
+                        local prog = model:FindFirstChild("Progress")
+                        if prog and prog:IsA("NumberValue") and prog.Value == 3 then
+                            allSafe = false
+                            break
+                        end
+                    end
+                end
+                task.wait(0.1)
+            until allSafe or not AutoAlarmEnabled
+
+            if not AutoAlarmEnabled then hasTriggered = false; return end
+        end
+
+        -- === EXECUTE TURN-OFF ===
+        local player = game.Players.LocalPlayer
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then hasTriggered = false; return end
+
+        local originalCFrame = hrp.CFrame
+
+        hrp.CFrame = CFrame.new(ALARM_POS)
+        task.wait(0.3)
+
+        for i = 1, 3 do
+            pcall(fireclickdetector, clickDetector)
+            task.wait(0.05)
+        end
+
+        task.wait(0.6)
+
+        if hrp and hrp.Parent then
+            hrp.CFrame = originalCFrame
+            task.wait(0.1)
+
+            Rayfield:Notify({
+                Title = "SUCCESS",
+                Content = "Alarm was automatically turned off.",
+                Duration = 4,
+                Image = ICON_SUCCESS
+            })
+        end
+
+        task.delay(3, function()
+            hasTriggered = false
+        end)
+    end)
+end
+
+local function stopAutoAlarm()
+    if alarmConn then
+        alarmConn:Disconnect()
+        alarmConn = nil
+    end
+    hasTriggered = false
+end
+
+AutoTab:CreateToggle({
+    Name = "Auto Turn off Alarm",
+    CurrentValue = false,
+    Flag = "AutoAlarm",
+    Callback = function(v)
+        AutoAlarmEnabled = v
+        if v then
+            stopAutoAlarm()
+            startAutoAlarm()
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Auto Turn off Alarm Enabled!",
+                Duration = 3,
+                Image = ICON_RADAR
+            })
+        else
+            stopAutoAlarm()
+            Rayfield:Notify({
+                Title = "WARNING",
+                Content = "Auto Turn off Alarm Disabled!",
+                Duration = 2,
+                Image = ICON_RADAR
+            })
+        end
+    end
+})
+AutoTab:CreateParagraph({
+    Title = "Usage",
+    Content = "Automatically turns off the Alarm when it's safe."
+})
+
+--------------------------------------------------------------------
+-- // TEDDY BEAR AUTO-CLICK — 7s + MANUAL BUTTON
+--------------------------------------------------------------------
+AutoTab:CreateSection("Teddy Bear")
+
+-- ICONS (use your existing ones or define here)
+local ICON_SUCCESS = 6031094667  -- Checkmark
+local ICON_RADAR   = 4483362458  -- Warning
+
+-- TEDDY POSITION
+local TEDDY_POS = Vector3.new(-8.735569953918457, 5.000003337860107, -8.874606132507324)
+
+-- FLAGS (for future Door/Alarm sync)
+local isDoorActive = false
+local isAlarmActive = false
+
+-- AUTO LOOP
+local TeddyEnabled = false
+local teddyLoop = nil
+
+-- SAFETY CHECK
+local function isSafe()
+    -- Not hiding
+    local bed = workspace:FindFirstChild("Bed")
+    local hidden = bed and bed:FindFirstChild("Hidden")
+    if hidden and hidden:IsA("BoolValue") and hidden.Value then return false end
+
+    -- No Stage 3 breach
+    local monster = workspace:FindFirstChild("Monster")
+    if monster then
+        for _, name in {"Door", "Vent", "Window"} do
+            local model = monster:FindFirstChild(name)
+            if model then
+                local prog = model:FindFirstChild("Progress")
+                if prog and prog:IsA("NumberValue") and prog.Value == 3 then
+                    return false
+                end
+            end
+        end
+    end
+
+    -- No conflict with Door/Alarm
+    if isDoorActive or isAlarmActive then return false end
+
     return true
 end
 
-local function waitForSafety()
-    repeat task.wait(0.2) until isSafeToAct() or not TeddyAutoEnabled
-end
+-- CLICK FUNCTION
+local function clickTeddy()
+    if not isSafe() then
+        Rayfield:Notify({
+            Title = "WARNING",
+            Content = "Cannot click Teddy: Unsafe Environment Detected!",
+            Duration = 2,
+            Image = ICON_RADAR
+        })
+        return
+    end
 
-local function clickTeddyBear()
+    local teddy = workspace:FindFirstChild("Teddy bear")
+    local detector = teddy and teddy:FindFirstChild("ClickDetector")
+    if not teddy or not detector then
+        Rayfield:Notify({
+            Title = "ERROR",
+            Content = "Teddy not found!",
+            Duration = 3,
+            Image = ICON_RADAR
+        })
+        return
+    end
+
     local player = game.Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local bed = workspace:FindFirstChild("Bed")
-    local hidden = bed and bed:FindFirstChild("Hidden")
-    local isHiding = hidden and hidden:IsA("BoolValue") and hidden.Value
-
-    local monster = workspace:FindFirstChild("Monster")
-    local doorModel = monster and monster:FindFirstChild("Door")
-    local doorProgress = doorModel and doorModel:FindFirstChild("Progress")
-    local doorAtStage3 = doorProgress and doorProgress:IsA("NumberValue") and doorProgress.Value == 3
-
-    if isHiding and doorAtStage3 then
-        task.wait(1)
-        return
-    end
-
-    if isHiding then
-        repeat task.wait() until not hidden.Value or not TeddyAutoEnabled
-        if not TeddyAutoEnabled then return end
-    end
-
-    if waitingForSuccess then
-        repeat task.wait(0.1) until not waitingForSuccess or not TeddyAutoEnabled
-        if not TeddyAutoEnabled then return end
-    end
-
-    if not isSafeToAct() then
-        waitForSafety()
-        if not TeddyAutoEnabled then return end
-    end
-
-    local teddy = workspace:FindFirstChild("Teddy bear")
-    local clickDetector = teddy and teddy:FindFirstChild("ClickDetector")
-    if not teddy or not clickDetector then return end
-
-    local originalCFrame = hrp.CFrame
+    local oldPos = hrp.CFrame
     hrp.CFrame = CFrame.new(TEDDY_POS)
-    task.wait(0.5)
-
+    task.wait(0.5)  -- Stabilize
     for i = 1, 3 do
-        if not TeddyAutoEnabled then break end
-        pcall(fireclickdetector, clickDetector, 0)
+        pcall(fireclickdetector, detector, 0)
         task.wait(0.1)
     end
+    hrp.CFrame = oldPos
+    task.wait(0.1)
 
-    if hrp and hrp.Parent then
-        hrp.CFrame = originalCFrame
-        task.wait(0.1)
-        Rayfield:Notify({
-            Title = "SUCCESS",
-            Content = "Teddy Bear clicked.",
-            Duration = 3,
-            Image = ICON_SUCCESS
-        })
-    end
+    Rayfield:Notify({
+        Title = "SUCCESS",
+        Content = "Teddy Bear clicked!",
+        Duration = 3,
+        Image = ICON_SUCCESS
+    })
 end
 
-local function startTeddyLoop()
-    if teddyLoop then return end
-    teddyLoop = task.spawn(function()
-        while TeddyAutoEnabled do
-            waitingForSuccess = false
-
-            local monster = workspace:FindFirstChild("Monster")
-            local radio = workspace:FindFirstChild("Radio")
-            local alarmPlaying = radio and radio:FindFirstChild("Main") and radio.Main:FindFirstChild("Alarm") and radio.Main.Alarm.IsPlaying
-
-            local anyStage3 = false
-            if monster then
-                for _, name in {"Door", "Vent", "Window"} do
-                    local model = monster:FindFirstChild(name)
-                    if model and model:FindFirstChild("Progress") and model.Progress:IsA("NumberValue") and model.Progress.Value == 3 then
-                        anyStage3 = true
-                        break
-                    end
-                end
-            end
-
-            if anyStage3 or alarmPlaying then
-                waitingForSuccess = true
-                connectSuccessListener()
-            end
-
-            clickTeddyBear()
-            task.wait(8)
-        end
-    end)
-end
-
-local function stopTeddyLoop()
-    TeddyAutoEnabled = false
-    waitingForSuccess = false
-    if teddyLoop then task.cancel(teddyLoop); teddyLoop = nil end
-    if successConn then successConn:Disconnect(); successConn = nil end
-end
-
+-- AUTO TOGGLE
 AutoTab:CreateToggle({
-    Name = "Auto Teddy Bear",
+    Name = "Auto Teddy Bear (7s)",
     CurrentValue = false,
-    Flag = "AutoTeddy",
     Callback = function(v)
-        TeddyAutoEnabled = v
+        TeddyEnabled = v
         if v then
-            stopTeddyLoop()
-            startTeddyLoop()
+            if teddyLoop then task.cancel(teddyLoop) end
+            teddyLoop = task.spawn(function()
+                while TeddyEnabled do
+                    clickTeddy()
+                    task.wait(7)
+                end
+            end)
             Rayfield:Notify({
                 Title = "WARNING",
-                Content = "Auto Teddy Bear Enabled! (Waits for Door/Alarm)",
+                Content = "Auto Teddy Enabled!",
                 Duration = 3,
                 Image = ICON_RADAR
             })
         else
-            stopTeddyLoop()
+            if teddyLoop then task.cancel(teddyLoop); teddyLoop = nil end
             Rayfield:Notify({
                 Title = "WARNING",
-                Content = "Auto Teddy Bear Disabled!",
+                Content = "Auto Teddy Disabled!",
                 Duration = 2,
                 Image = ICON_RADAR
             })
@@ -404,18 +597,24 @@ AutoTab:CreateToggle({
     end
 })
 
-AutoTab:CreateSection("Info")
+-- MANUAL BUTTON
+AutoTab:CreateButton({
+    Name = "Click Teddy",
+    Callback = function()
+        clickTeddy()
+    end
+})
 AutoTab:CreateParagraph({
-    Title = "Auto Teddy",
-    Content = "• Clicks every 8s\n• Waits for Door/Alarm\n• Skips if hiding + Door Stage 3\n• Teleports + spam click"
+    Title = "Usage",
+    Content = "Automatically clicks Teddy when it's safe. / Manually clicks Teddy."
 })
 
 --------------------------------------------------------------------
--- // LOADED
+-- // SCRIPT LOADED
 --------------------------------------------------------------------
 Rayfield:Notify({
-    Title = "LOADED",
-    Content = "Residence Massacre v3.0 — ICONS + TEDDY FIXED",
+    Title = "SUCCESS",
+    Content = "Core Memory v1.2 -- ProxFlare Hub Loaded Successfully!",
     Duration = 6,
     Image = ICON_SUCCESS
 })
