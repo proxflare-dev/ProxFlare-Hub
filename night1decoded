@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Strict 1x",
-   LoadingTitle = "Securing Triggers...",
+   Name = "Infiltration Ult | Final Layout",
+   LoadingTitle = "Organizing...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -47,15 +47,12 @@ task.spawn(function()
             RunService.RenderStepped:Connect(function()
                 timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) 
             end)
-            notify("UI", "Clock Active")
         end
     end
 end)
 
+-- ==================== 1. INFO TAB ====================
 local InfoTab = Window:CreateTab("Info", 4483362458) 
-local NightTab = Window:CreateTab("Night 1", 4483362458)   
-local ToolsTab = Window:CreateTab("Tools", 4483362458) 
-local TestingTab = Window:CreateTab("Testing", 4483362458)
 
 InfoTab:CreateSection("Modifiers")
 local function createStatusLabel(n, b)
@@ -68,7 +65,17 @@ createStatusLabel("Bloodmoon", mods.Bloodmoon)
 createStatusLabel("Blizzard", mods.Blizzard)
 createStatusLabel("Zombies", mods.Zombies)
 
-local ActionInProgress = false 
+-- Moved "Reset" button here since Tools tab is gone
+InfoTab:CreateSection("Utils")
+InfoTab:CreateButton({Name = "Reset Script (Unstuck)", Callback = function() 
+    _G.ActionInProgress = false; 
+    _G.Refueling = false; 
+    notify("OK", "Script State Reset.") 
+end})
+
+-- ==================== LOGIC GLOBALS ====================
+_G.ActionInProgress = false 
+_G.Refueling = false
 local NoclipConnection = nil
 
 local RoomCoordinates = {
@@ -122,12 +129,12 @@ end
 
 local function EmergencyEvac()
     EnableNoclip(false)
-    ActionInProgress = false
+    _G.ActionInProgress = false
     notify("DANGER", "Mutant Detected!")
     if player.Character then InstantTP(CFrame.new(RoomCoordinates["BottomCorridor"])) end
 end
 
-workspace.ChildAdded:Connect(function(c) if c.Name == "Mutant" and ActionInProgress then EmergencyEvac() end end)
+workspace.ChildAdded:Connect(function(c) if c.Name == "Mutant" and _G.ActionInProgress then EmergencyEvac() end end)
 
 local function SmartWait(dur)
     for i = 1, math.floor(dur / 0.05) do
@@ -137,31 +144,24 @@ local function SmartWait(dur)
     return true 
 end
 
--- ==================== STRICT REFUEL (1X) ====================
+-- ==================== 2. NIGHT 1 TAB ====================
+local NightTab = Window:CreateTab("Night 1", 4483362458)   
 local FuelSection = NightTab:CreateSection("Fuel")
-local refueling = false
 local autoConn = nil
 
 local function executeRefuel(isManual)
-    -- Reset state if manual click
-    if isManual then ActionInProgress = false; refueling = false end
+    if isManual then _G.ActionInProgress = false; _G.Refueling = false end
+    if _G.Refueling or _G.ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
-    -- HARD LOCK: If already busy, stop immediately
-    if refueling or ActionInProgress then 
-        if isManual then notify("BUSY", "Already running action.") end
-        return 
-    end
-    
-    -- WAIT FOR MUTANT
     if not isManual and workspace:FindFirstChild("Mutant") then 
-        notify("WAIT", "Mutant present. Holding...")
+        notify("WAIT", "Waiting for Mutant to leave...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        notify("CLEAR", "Mutant gone. Starting.")
+        -- Lag Buffer
+        task.wait(0.5)
+        notify("CLEAR", "Mutant gone. Executing.")
     end
 
-    -- LOCK THE SCRIPT
-    refueling = true
-    ActionInProgress = true
+    _G.Refueling = true; _G.ActionInProgress = true
     
     local s, e = pcall(function()
         local can = shack:FindFirstChild("JerryCan")
@@ -170,106 +170,112 @@ local function executeRefuel(isManual)
             local start = player.Character.HumanoidRootPart.CFrame
             notify("ACT", "Refueling (1x)...")
             
-            -- 1. TP to Can
             InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
             if not SmartWait(0.1) then return end 
-            
-            -- 2. Click Can
             if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
             if not SmartWait(0.3) then return end
-            
-            -- 3. Click Generator
             if generator:FindFirstChild("ClickDetector") then 
                 fireclickdetector(generator.ClickDetector)
                 notify("OK", "Filled.") 
             end
-            
-            -- 4. Cooldown Buffer (0.7s)
             if not SmartWait(0.7) then return end
             
-            -- 5. Return
             InstantTP(start)
             notify("DONE", "Refuel Complete.")
         end
     end)
-    
     if not s then notify("ERR", "Crash: "..tostring(e)) end
-    
-    -- UNLOCK
-    refueling = false
-    ActionInProgress = false
+    _G.Refueling = false; _G.ActionInProgress = false
 end
 
-NightTab:CreateToggle({Name = "Auto Refuel (40%)", CurrentValue = false, Flag = "AutoRefuel", Callback = function(on)
-    if on then 
-        notify("SYS", "Auto Refuel ON")
-        autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
-            -- Check lock BEFORE spawning thread to prevent spam
-            if fuel.Value <= 40 and not ActionInProgress and not refueling then 
-                task.spawn(function() executeRefuel(false) end) 
-            end 
-        end)
-    else 
-        if autoConn then autoConn:Disconnect() end 
+NightTab:CreateToggle({
+    Name = "Auto Refuel (40%)", 
+    CurrentValue = false, 
+    Flag = "AutoRefuel", 
+    Callback = function(on)
+        if on then 
+            notify("SYS", "Auto Refuel ON")
+            autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
+                if fuel.Value <= 40 and not _G.ActionInProgress then 
+                    task.spawn(function() executeRefuel(false) end) 
+                end 
+            end)
+        else 
+            if autoConn then autoConn:Disconnect() end 
+        end
     end
-end})
+})
+NightTab:CreateParagraph({Title = "Usage", Content = "Waits for Mutant to leave, then refuels once (1x)."})
 
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
-NightTab:CreateToggle({Name = "Fuel ESP", CurrentValue = false, Flag = "FuelESP", Callback = function(v)
-    if v then
-        local b = Instance.new("BillboardGui", CoreGui); b.Adornee = generator:FindFirstChildWhichIsA("BasePart"); b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,4,0)
-        local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
-        t.TextColor3 = Color3.new(0,1,1); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
-        t.Text = "Fuel: "..fuel.Value.."%"; fuel.Changed:Connect(function() t.Text = "Fuel: "..fuel.Value.."%" end); _G.FuelBill = b
-    else
-        if _G.FuelBill then _G.FuelBill:Destroy() end
+
+NightTab:CreateToggle({
+    Name = "Fuel ESP", 
+    CurrentValue = false, 
+    Flag = "FuelESP", 
+    Callback = function(v)
+        if v then
+            local b = Instance.new("BillboardGui", CoreGui); b.Adornee = generator:FindFirstChildWhichIsA("BasePart"); b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,4,0)
+            local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
+            t.TextColor3 = Color3.new(0,1,1); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
+            t.Text = "Fuel: "..fuel.Value.."%"; fuel.Changed:Connect(function() t.Text = "Fuel: "..fuel.Value.."%" end); _G.FuelBill = b
+        else
+            if _G.FuelBill then _G.FuelBill:Destroy() end
+        end
     end
-end})
+})
 
 local LightsSection = NightTab:CreateSection("Lights")
 local LCon = nil
-NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoLights", Callback = function(on)
-    if on then
-        notify("SYS", "Auto Lights ON")
-        local function trap(m)
-            task.wait(1.5)
-            local wins = workspace:FindFirstChild("Windows")
-            if wins and m:FindFirstChild("HumanoidRootPart") then
-                local close, dist = nil, 9999
-                for _,w in pairs(wins:GetChildren()) do
-                    local p = w.PrimaryPart or w:FindFirstChildWhichIsA("BasePart")
-                    if p and (m.HumanoidRootPart.Position - p.Position).Magnitude < dist then dist=(m.HumanoidRootPart.Position-p.Position).Magnitude; close=w end
-                end
-                if close and close:FindFirstChild("RoomName") then
-                    while ActionInProgress do task.wait(0.1) end; ActionInProgress = true
-                    local rn = close.RoomName.Value
-                    if RoomCoordinates[rn] then
-                        local start = player.Character.HumanoidRootPart.CFrame
-                        FlightMove(GetGroundedCFrame(RoomCoordinates[rn]))
-                        task.wait(0.7) 
-                        for _,l in pairs(workspace.Lights:GetChildren()) do
-                            if l.Status.RoomName.Value == rn then 
-                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
-                            end
-                        end
-                        FlightMove(start)
+NightTab:CreateToggle({
+    Name = "Auto Lights", 
+    CurrentValue = false, 
+    Flag = "AutoLights", 
+    Callback = function(on)
+        if on then
+            notify("SYS", "Auto Lights ON")
+            local function trap(m)
+                task.wait(1.5)
+                local wins = workspace:FindFirstChild("Windows")
+                if wins and m:FindFirstChild("HumanoidRootPart") then
+                    local close, dist = nil, 9999
+                    for _,w in pairs(wins:GetChildren()) do
+                        local p = w.PrimaryPart or w:FindFirstChildWhichIsA("BasePart")
+                        if p and (m.HumanoidRootPart.Position - p.Position).Magnitude < dist then dist=(m.HumanoidRootPart.Position-p.Position).Magnitude; close=w end
                     end
-                    ActionInProgress = false
+                    if close and close:FindFirstChild("RoomName") then
+                        while _G.ActionInProgress do task.wait(0.1) end; _G.ActionInProgress = true
+                        local rn = close.RoomName.Value
+                        if RoomCoordinates[rn] then
+                            local start = player.Character.HumanoidRootPart.CFrame
+                            FlightMove(GetGroundedCFrame(RoomCoordinates[rn]))
+                            task.wait(0.7) 
+                            for _,l in pairs(workspace.Lights:GetChildren()) do
+                                if l.Status.RoomName.Value == rn then 
+                                    fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
+                                end
+                            end
+                            FlightMove(start)
+                        end
+                        _G.ActionInProgress = false
+                    end
                 end
             end
+            if workspace:FindFirstChild("Mutant") then task.spawn(function() trap(workspace.Mutant) end) end
+            LCon = workspace.ChildAdded:Connect(function(c) if c.Name=="Mutant" then task.wait(0.5); trap(c) end end)
+        else
+            if LCon then LCon:Disconnect() end
         end
-        if workspace:FindFirstChild("Mutant") then task.spawn(function() trap(workspace.Mutant) end) end
-        LCon = workspace.ChildAdded:Connect(function(c) if c.Name=="Mutant" then task.wait(0.5); trap(c) end end)
-    else
-        if LCon then LCon:Disconnect() end
     end
-end})
+})
 NightTab:CreateParagraph({Title = "Usage", Content = "Flashes lights when Mutant peeks (0.7s delay)."})
 
-if mods.Blizzard then
+-- ==================== 3. BLIZZARD TAB (CONDITIONAL) ====================
+if mods.Blizzard and mods.Blizzard.Value then
     local BzTab = Window:CreateTab("Blizzard", 4483362458); local fCon = nil
+    
     local function restock()
-        if ActionInProgress or workspace:FindFirstChild("Mutant") then return end; ActionInProgress = true
+        if _G.ActionInProgress or workspace:FindFirstChild("Mutant") then return end; _G.ActionInProgress = true
         local s, e = pcall(function()
             if player.Character then
                 local s = player.Character.HumanoidRootPart.CFrame
@@ -280,24 +286,37 @@ if mods.Blizzard then
                 InstantTP(s)
             end
         end)
-        ActionInProgress = false
+        _G.ActionInProgress = false
     end
-    BzTab:CreateToggle({Name = "Auto Fireplace", Callback = function(on) if on then fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) else if fCon then fCon:Disconnect() end end end})
     
-    BzTab:CreateToggle({Name = "Fire ESP", Callback = function(v)
-        if v then
-            local b = Instance.new("BillboardGui", CoreGui); b.Adornee = firePlace; b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,2,0)
-            local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
-            t.TextColor3 = Color3.new(1,0.5,0); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
-            t.Text = "Fire: "..fireFuel.Value.."%"; fireFuel.Changed:Connect(function() t.Text = "Fire: "..fireFuel.Value.."%" end); _G.FireBill = b
-        else
-            if _G.FireBill then _G.FireBill:Destroy() end
+    BzTab:CreateToggle({
+        Name = "Auto Fireplace", 
+        Callback = function(on) 
+            if on then fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) 
+            else if fCon then fCon:Disconnect() end end 
         end
-    end})
-    BzTab:CreateButton({Name = "Restock Manually", Callback = function() task.spawn(restock) end})
+    })
     BzTab:CreateParagraph({Title = "Usage", Content = "Refuels fire automatically (Instant TP)."})
+    
+    BzTab:CreateToggle({
+        Name = "Fire ESP", 
+        Callback = function(v)
+            if v then
+                local b = Instance.new("BillboardGui", CoreGui); b.Adornee = firePlace; b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,2,0)
+                local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
+                t.TextColor3 = Color3.new(1,0.5,0); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
+                t.Text = "Fire: "..fireFuel.Value.."%"; fireFuel.Changed:Connect(function() t.Text = "Fire: "..fireFuel.Value.."%" end); _G.FireBill = b
+            else
+                if _G.FireBill then _G.FireBill:Destroy() end
+            end
+        end
+    })
+    
+    BzTab:CreateButton({Name = "Restock Manually", Callback = function() task.spawn(restock) end})
 end
 
+-- ==================== 4. TESTING TAB ====================
+local TestingTab = Window:CreateTab("Testing", 4483362458)
 local MutantLog = {}
 local MutantCount = 0
 local LastRealTime = tick()
@@ -320,14 +339,11 @@ local function TrackMutant()
     end)
 end
 
-TestingTab:CreateToggle({Name = "Test Mutant Spawn", Callback = function(en) if en then notify("SYS", "Tracking ON"); TrackMutant() else notify("SYS", "Tracking OFF"); if TestConnection then TestConnection:Disconnect() end end end})
+TestingTab:CreateToggle({
+    Name = "Test Mutant Spawn", 
+    Callback = function(en) 
+        if en then notify("SYS", "Tracking ON"); TrackMutant() 
+        else notify("SYS", "Tracking OFF"); if TestConnection then TestConnection:Disconnect() end end 
+    end
+})
 TestingTab:CreateButton({Name = "Clear Logs", Callback = function() MutantLog={}; MutantCount=0; LogDisplay:Set({Title="History", Content="Cleared."}) end})
-
-ToolsTab:CreateButton({Name = "Fix Stuck Buttons", Callback = function() ActionInProgress=false; refueling=false; notify("OK", "Reset.") end})
-ToolsTab:CreateButton({Name = "Copy Pos", Callback = function() 
-    if player.Character then 
-        local p = player.Character.HumanoidRootPart.Position
-        setclipboard(string.format("Vector3.new(%.3f, %.3f, %.3f)", p.X, p.Y, p.Z))
-        notify("OK", "Copied") 
-    end 
-end})
