@@ -3,13 +3,13 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Engine | Checkpoints",
-   LoadingTitle = "Setting Checkpoints...",
+   Name = "Infiltration Engine | Tuned Timings",
+   LoadingTitle = "Syncing...",
    LoadingSubtitle = "by Gemini",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "InfiltrationUltimate",
-      FileName = "CheckpointConfig"
+      FileName = "UltimateConfig"
    },
    KeySystem = false,
 })
@@ -45,6 +45,7 @@ local mods = {
     Event = SafeLoad(gameState, "Event")
 }
 
+local fusesFried = SafeLoad(gameState, "FusesFried")
 local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
@@ -120,34 +121,27 @@ end
 -- EVACUATION SYSTEM
 local function EmergencyEvac()
     if CurrentTween then CurrentTween:Cancel(); CurrentTween = nil end
-    notify("CHECKPOINT", "Mutant Detected! Pausing...")
+    notify("CHECKPOINT", "Mutant Detected! Evacuating...")
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         InstantTP(CFrame.new(RoomCoordinates["BottomCorridor"]))
     end
 end
 
--- [[ NEW: CHECKPOINT SYSTEM ]] --
--- Replaces SmartWait. Instead of quitting, it waits and goes back.
+-- [[ CHECKPOINT SYSTEM ]] --
 local function EnsureSafePosition(targetCFrame, stepName)
-    InstantTP(targetCFrame) -- Go to destination
+    InstantTP(targetCFrame) 
     
     local timePassed = 0
-    local requiredTime = 0.3 -- How long we need to stay safe
+    local requiredTime = 0.3 -- How long to hold position
     
     while timePassed < requiredTime do
         if workspace:FindFirstChild("Mutant") then
-            -- 1. DANGER DETECTED
             EmergencyEvac()
-            
-            -- 2. WAIT UNTIL SAFE
             repeat task.wait(1) until not workspace:FindFirstChild("Mutant")
-            
-            -- 3. RESUME (LOAD CHECKPOINT)
             notify("RESUME", "Resuming: " .. stepName)
             InstantTP(targetCFrame) 
-            timePassed = 0 -- Reset timer to ensure safety
+            timePassed = 0 
         else
-            -- SAFE
             task.wait(0.05)
             timePassed = timePassed + 0.05
         end
@@ -155,7 +149,7 @@ local function EnsureSafePosition(targetCFrame, stepName)
     return true
 end
 
--- ==================== 5. REFUEL SYSTEM (CHECKPOINT) ====================
+-- ==================== 5. REFUEL SYSTEM (CHECKPOINT + 40%) ====================
 local FuelSection = NightTab:CreateSection("Fuel")
 local refueling = false
 local autoConn = nil
@@ -167,7 +161,6 @@ local function executeRefuel(isManual)
         return 
     end
     
-    -- Manual check before starting
     if not isManual and workspace:FindFirstChild("Mutant") then notify("WAIT", "Mutant present."); return end
 
     refueling = true
@@ -190,7 +183,6 @@ local function executeRefuel(isManual)
             end
             
             -- CHECKPOINT 2: Stay at Can / Go to Gen
-            -- We verify we are still safe before clicking Generator
             EnsureSafePosition(CFrame.new(RoomCoordinates["JerryCan"]), "Fill Generator")
             
             if generator:FindFirstChild("ClickDetector") then
@@ -198,11 +190,9 @@ local function executeRefuel(isManual)
                 notify("SUCCESS", "Refueled.")
             end
             
-            -- Wait for action to finish
             task.wait(0.2)
 
             -- CHECKPOINT 3: Return
-            -- If mutant spawned right as we finished, we evac, then return to start pos later
             EnsureSafePosition(startPos, "Return Home")
             notify("DONE", "Returned.")
         end
@@ -221,7 +211,6 @@ NightTab:CreateToggle({
         if on then
             notify("SYSTEM", "Auto Refuel ON (<= 40%).") 
             autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function()
-                -- UPDATED THRESHOLD: 40
                 if fuel.Value <= 40 then task.spawn(function() executeRefuel(false) end) end
             end)
         else
@@ -253,7 +242,7 @@ NightTab:CreateToggle({
    end,
 })
 
--- ==================== 6. AUTO LIGHTS (DELAYED) ====================
+-- ==================== 6. AUTO LIGHTS (1.4s DELAY) ====================
 local LightsSection = NightTab:CreateSection("Lights")
 local RoomLightConnection = nil
 NightTab:CreateToggle({
@@ -272,7 +261,10 @@ NightTab:CreateToggle({
                     if char and char:FindFirstChild("HumanoidRootPart") then
                         local originalCFrame = char.HumanoidRootPart.CFrame
                         FlightMove(GetGroundedCFrame(targetVec))
-                        task.wait(0.5) -- Stabilize
+                        
+                        -- STABILITY WAIT (1.4s)
+                        task.wait(1.4)
+                        
                         local lightsFolder = workspace:FindFirstChild("Lights")
                         if lightsFolder then
                             for _, light in pairs(lightsFolder:GetChildren()) do
@@ -281,7 +273,7 @@ NightTab:CreateToggle({
                                     if (det.Position - char.HumanoidRootPart.Position).Magnitude < 15 and det:FindFirstChild("ClickDetector") then
                                         fireclickdetector(det.ClickDetector)
                                         notify("ACTION", "Flashed: " .. roomName)
-                                        task.wait(0.8) -- Slow Delay
+                                        task.wait(0.5) 
                                         fireclickdetector(det.ClickDetector)
                                     end
                                 end
@@ -319,6 +311,7 @@ NightTab:CreateToggle({
 })
 NightTab:CreateParagraph({Title = "Usage", Content = "Scares off Mutant automatically."})
 
+-- ==================== 7. BLIZZARD TAB (TUNED) ====================
 if isBlizzardActive then
     local BlizzardTab = Window:CreateTab("Blizzard", 4483362458)
     local fireConn = nil
@@ -331,16 +324,25 @@ if isBlizzardActive then
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local startPos = player.Character.HumanoidRootPart.CFrame
             
-            -- CHECKPOINT A: Go to Wood
-            EnsureSafePosition(GetGroundedCFrame(RoomCoordinates["WoodPile"]), "Fetch Wood")
+            -- 1. INSTANT TP TO WOOD
+            InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"]))
+            if not SmartWait(0.3) then ActionInProgress=false; return end
             
-            if woodPile.Detector:FindFirstChild("ClickDetector") then fireclickdetector(woodPile.Detector.ClickDetector) end
+            if woodPile.Detector:FindFirstChild("ClickDetector") then 
+                fireclickdetector(woodPile.Detector.ClickDetector) 
+            end
             
-            -- CHECKPOINT B: Go to Fireplace
-            EnsureSafePosition(CFrame.new(RoomCoordinates["FirePlace"]), "Add Wood")
+            -- [[ UPDATED: Wait 0.5s after clicking wood ]] --
+            if not SmartWait(0.5) then ActionInProgress=false; return end
             
-            -- CHECKPOINT C: Return Home
-            EnsureSafePosition(startPos, "Return Home")
+            -- 2. INSTANT TP TO FIREPLACE
+            InstantTP(CFrame.new(RoomCoordinates["FirePlace"])) 
+            
+            -- [[ UPDATED: Wait 0.4s at Fireplace ]] --
+            if not SmartWait(0.4) then ActionInProgress=false; return end
+            
+            -- 3. INSTANT TP BACK
+            InstantTP(startPos)
         end
         ActionInProgress = false
     end
@@ -359,11 +361,39 @@ if isBlizzardActive then
             end
        end,
     })
+    
+    BlizzardTab:CreateToggle({
+       Name = "Fire Health ESP",
+       CurrentValue = false,
+       Flag = "FireESP",
+       Callback = function(v)
+            if v then
+                notify("SYSTEM", "Fire ESP ON.") 
+                local bill = Instance.new("BillboardGui", CoreGui)
+                local target = firePlace:FindFirstChild("Base") or firePlace:FindFirstChildWhichIsA("BasePart") or firePlace
+                
+                bill.Adornee = target
+                bill.Size = UDim2.new(0,260,0,60); bill.StudsOffset = Vector3.new(0,2,0); bill.AlwaysOnTop = true
+                local txt = Instance.new("TextLabel", bill); txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency = 1; txt.TextColor3 = Color3.fromRGB(255, 170, 0); txt.TextStrokeTransparency = 0; txt.Font = Enum.Font.GothamBold; txt.TextSize = 20
+                
+                if fireFuel then
+                    txt.Text = "Fire: "..fireFuel.Value.."%"
+                    _G.FireConn = fireFuel.Changed:Connect(function() txt.Text = "Fire: "..fireFuel.Value.."%" end)
+                end
+                _G.FireBill = bill
+            else
+                notify("SYSTEM", "Fire ESP OFF.") 
+                if _G.FireBill then _G.FireBill:Destroy() end
+                if _G.FireConn then _G.FireConn:Disconnect() end
+            end
+       end,
+    })
+    
     BlizzardTab:CreateButton({Name = "Restock Manually", Callback = function() task.spawn(executeRestock) end})
     BlizzardTab:CreateParagraph({Title = "Usage", Content = "Uses Checkpoints. Hides if Mutant appears."})
 end
 
--- ==================== 7. TOOLS ====================
+-- ==================== 8. TOOLS ====================
 ToolsTab:CreateButton({
    Name = "Reset Script State (Fix Stuck)",
    Callback = function()
