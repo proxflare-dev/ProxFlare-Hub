@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Engine | Tuned Timings",
-   LoadingTitle = "Syncing...",
+   Name = "Infiltration Engine | Stable Blizzard",
+   LoadingTitle = "Securing Loops...",
    LoadingSubtitle = "by Gemini",
    ConfigurationSaving = {
       Enabled = true,
@@ -149,7 +149,7 @@ local function EnsureSafePosition(targetCFrame, stepName)
     return true
 end
 
--- ==================== 5. REFUEL SYSTEM (CHECKPOINT + 40%) ====================
+-- ==================== 5. REFUEL SYSTEM ====================
 local FuelSection = NightTab:CreateSection("Fuel")
 local refueling = false
 local autoConn = nil
@@ -311,7 +311,7 @@ NightTab:CreateToggle({
 })
 NightTab:CreateParagraph({Title = "Usage", Content = "Scares off Mutant automatically."})
 
--- ==================== 7. BLIZZARD TAB (TUNED) ====================
+-- ==================== 7. BLIZZARD TAB (CRASH PROOF) ====================
 if isBlizzardActive then
     local BlizzardTab = Window:CreateTab("Blizzard", 4483362458)
     local fireConn = nil
@@ -319,31 +319,44 @@ if isBlizzardActive then
     local function executeRestock()
         if ActionInProgress or workspace:FindFirstChild("Mutant") then return end
         ActionInProgress = true
-        notify("ACTION", "Restocking Fire...")
         
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local startPos = player.Character.HumanoidRootPart.CFrame
+        -- WRAPPED IN SAFETY LAYER (pcall) to prevent stuck button
+        local success, err = pcall(function()
+            notify("ACTION", "Restocking Fire...")
             
-            -- 1. INSTANT TP TO WOOD
-            InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"]))
-            if not SmartWait(0.3) then ActionInProgress=false; return end
+            -- Re-find objects to be safe
+            local currentWood = workspace:FindFirstChild("WoodPile")
+            local currentFire = workspace:FindFirstChild("FirePlace")
             
-            if woodPile.Detector:FindFirstChild("ClickDetector") then 
-                fireclickdetector(woodPile.Detector.ClickDetector) 
+            if not currentWood or not currentFire then notify("ERROR", "Wood/Fireplace missing!"); return end
+            
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local startPos = player.Character.HumanoidRootPart.CFrame
+                
+                -- 1. INSTANT TP TO WOOD
+                InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"]))
+                
+                if not SmartWait(0.3) then return end
+                
+                if currentWood.Detector:FindFirstChild("ClickDetector") then 
+                    fireclickdetector(currentWood.Detector.ClickDetector) 
+                end
+                
+                -- Wait 0.5s after clicking Wood
+                if not SmartWait(0.5) then return end
+                
+                -- 2. INSTANT TP TO FIREPLACE
+                InstantTP(CFrame.new(RoomCoordinates["FirePlace"])) 
+                
+                -- Wait 0.4s at Fireplace
+                if not SmartWait(0.4) then return end
+                
+                -- 3. INSTANT TP BACK
+                InstantTP(startPos)
             end
-            
-            -- [[ UPDATED: Wait 0.5s after clicking wood ]] --
-            if not SmartWait(0.5) then ActionInProgress=false; return end
-            
-            -- 2. INSTANT TP TO FIREPLACE
-            InstantTP(CFrame.new(RoomCoordinates["FirePlace"])) 
-            
-            -- [[ UPDATED: Wait 0.4s at Fireplace ]] --
-            if not SmartWait(0.4) then ActionInProgress=false; return end
-            
-            -- 3. INSTANT TP BACK
-            InstantTP(startPos)
-        end
+        end)
+        
+        if not success then notify("ERROR", "Fireplace Script Error!") end
         ActionInProgress = false
     end
 
