@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Speed Tuned",
-   LoadingTitle = "Adjusting Physics...",
+   Name = "Infiltration Ult | Final",
+   LoadingTitle = "Connecting UI...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -35,6 +35,25 @@ local mods = {
 local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
+
+-- ==================== PASSIVE CLOCK (CORRECTED) ====================
+task.spawn(function()
+    local pGui = player:WaitForChild("PlayerGui", 5)
+    local dialogue = pGui and pGui:WaitForChild("DialogueUI", 5)
+    if dialogue then
+        -- [[ TARGET CHANGED: EventTimer ]] --
+        local timerLabel = dialogue:WaitForChild("EventTimer", 5)
+        if timerLabel then
+            timerLabel.Visible = true 
+            RunService.RenderStepped:Connect(function()
+                timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) -- "14:05"
+            end)
+            notify("UI", "Clock injected into EventTimer")
+        else
+            notify("UI", "EventTimer not found")
+        end
+    end
+end)
 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
 local NightTab = Window:CreateTab("Night 1", 4483362458)   
@@ -94,12 +113,10 @@ local function EnableNoclip(bool)
     end
 end
 
--- [[ FASTER FLIGHT SPEED ]] --
 local function FlightMove(targetCFrame)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
     local hrp = player.Character.HumanoidRootPart
-    -- Changed Divisor from 55 to 75 (Higher = Faster)
-    local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - targetCFrame.Position).Magnitude / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - targetCFrame.Position).Magnitude / 55, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     EnableNoclip(true)
     tween:Play()
     tween.Completed:Wait()
@@ -123,6 +140,7 @@ local function SmartWait(dur)
     return true 
 end
 
+-- ==================== SYNCED REFUEL ====================
 local FuelSection = NightTab:CreateSection("Fuel")
 local refueling = false
 local autoConn = nil
@@ -132,7 +150,7 @@ local function executeRefuel(isManual)
     if refueling or ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
     if not isManual and workspace:FindFirstChild("Mutant") then 
-        notify("WAIT", "Mutant active. Waiting for flash...")
+        notify("WAIT", "Waiting for Mutant to leave...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
         notify("CLEAR", "Mutant gone. Executing Refuel.")
     end
@@ -147,32 +165,20 @@ local function executeRefuel(isManual)
             
             for i = 1, 2 do
                 notify("ACT", "Refueling ("..i.."/2)...")
-                
                 InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
-                if not SmartWait(0.3) then return end
-                
+                if not SmartWait(0.1) then return end 
                 if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
-                if not SmartWait(0.5) then return end
+                
+                if not SmartWait(0.3) then return end
                 
                 if generator:FindFirstChild("ClickDetector") then 
                     fireclickdetector(generator.ClickDetector)
                     notify("OK", "Filled ("..i..")") 
                 end
                 
-                -- [[ BUFFER BETWEEN LOOPS ]] --
-                -- If this was loop 1, wait 0.5s so we don't break interaction
-                if i == 1 then
-                    notify("WAIT", "Stabilizing for Cycle 2...")
-                    if not SmartWait(0.5) then return end
-                else
-                    -- Loop 2 done
-                    if not SmartWait(0.5) then return end
-                end
+                if not SmartWait(0.7) then return end
             end
             
-            -- [[ FINAL RETURN STABILIZATION ]] --
-            -- Ensure server registers the fill before TP
-            task.wait(0.2) 
             InstantTP(start)
             notify("DONE", "Refuel Complete.")
         end
@@ -222,14 +228,10 @@ NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoL
                     if RoomCoordinates[rn] then
                         local start = player.Character.HumanoidRootPart.CFrame
                         FlightMove(GetGroundedCFrame(RoomCoordinates[rn]))
-                        
                         task.wait(0.7) 
-                        
                         for _,l in pairs(workspace.Lights:GetChildren()) do
                             if l.Status.RoomName.Value == rn then 
-                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); 
-                                task.wait(1); 
-                                fireclickdetector(l.Switch.Detector.ClickDetector)
+                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
                             end
                         end
                         FlightMove(start)
