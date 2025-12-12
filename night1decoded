@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Final",
-   LoadingTitle = "Connecting UI...",
+   Name = "Infiltration Ult | Strict 1x",
+   LoadingTitle = "Securing Triggers...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -36,21 +36,18 @@ local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
 
--- ==================== PASSIVE CLOCK (CORRECTED) ====================
+-- ==================== PASSIVE CLOCK ====================
 task.spawn(function()
     local pGui = player:WaitForChild("PlayerGui", 5)
     local dialogue = pGui and pGui:WaitForChild("DialogueUI", 5)
     if dialogue then
-        -- [[ TARGET CHANGED: EventTimer ]] --
         local timerLabel = dialogue:WaitForChild("EventTimer", 5)
         if timerLabel then
             timerLabel.Visible = true 
             RunService.RenderStepped:Connect(function()
-                timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) -- "14:05"
+                timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) 
             end)
-            notify("UI", "Clock injected into EventTimer")
-        else
-            notify("UI", "EventTimer not found")
+            notify("UI", "Clock Active")
         end
     end
 end)
@@ -140,57 +137,78 @@ local function SmartWait(dur)
     return true 
 end
 
--- ==================== SYNCED REFUEL ====================
+-- ==================== STRICT REFUEL (1X) ====================
 local FuelSection = NightTab:CreateSection("Fuel")
 local refueling = false
 local autoConn = nil
 
 local function executeRefuel(isManual)
+    -- Reset state if manual click
     if isManual then ActionInProgress = false; refueling = false end
-    if refueling or ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
+    -- HARD LOCK: If already busy, stop immediately
+    if refueling or ActionInProgress then 
+        if isManual then notify("BUSY", "Already running action.") end
+        return 
+    end
+    
+    -- WAIT FOR MUTANT
     if not isManual and workspace:FindFirstChild("Mutant") then 
-        notify("WAIT", "Waiting for Mutant to leave...")
+        notify("WAIT", "Mutant present. Holding...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        notify("CLEAR", "Mutant gone. Executing Refuel.")
+        notify("CLEAR", "Mutant gone. Starting.")
     end
 
-    refueling = true; ActionInProgress = true
+    -- LOCK THE SCRIPT
+    refueling = true
+    ActionInProgress = true
     
     local s, e = pcall(function()
         local can = shack:FindFirstChild("JerryCan")
         if not can then notify("ERR", "No Can!"); return end
         if player.Character then
             local start = player.Character.HumanoidRootPart.CFrame
+            notify("ACT", "Refueling (1x)...")
             
-            for i = 1, 2 do
-                notify("ACT", "Refueling ("..i.."/2)...")
-                InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
-                if not SmartWait(0.1) then return end 
-                if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
-                
-                if not SmartWait(0.3) then return end
-                
-                if generator:FindFirstChild("ClickDetector") then 
-                    fireclickdetector(generator.ClickDetector)
-                    notify("OK", "Filled ("..i..")") 
-                end
-                
-                if not SmartWait(0.7) then return end
+            -- 1. TP to Can
+            InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
+            if not SmartWait(0.1) then return end 
+            
+            -- 2. Click Can
+            if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
+            if not SmartWait(0.3) then return end
+            
+            -- 3. Click Generator
+            if generator:FindFirstChild("ClickDetector") then 
+                fireclickdetector(generator.ClickDetector)
+                notify("OK", "Filled.") 
             end
             
+            -- 4. Cooldown Buffer (0.7s)
+            if not SmartWait(0.7) then return end
+            
+            -- 5. Return
             InstantTP(start)
             notify("DONE", "Refuel Complete.")
         end
     end)
+    
     if not s then notify("ERR", "Crash: "..tostring(e)) end
-    refueling = false; ActionInProgress = false
+    
+    -- UNLOCK
+    refueling = false
+    ActionInProgress = false
 end
 
 NightTab:CreateToggle({Name = "Auto Refuel (40%)", CurrentValue = false, Flag = "AutoRefuel", Callback = function(on)
     if on then 
         notify("SYS", "Auto Refuel ON")
-        autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() if fuel.Value <= 40 then task.spawn(function() executeRefuel(false) end) end end)
+        autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
+            -- Check lock BEFORE spawning thread to prevent spam
+            if fuel.Value <= 40 and not ActionInProgress and not refueling then 
+                task.spawn(function() executeRefuel(false) end) 
+            end 
+        end)
     else 
         if autoConn then autoConn:Disconnect() end 
     end
