@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Logger",
-   LoadingTitle = "Loading...",
+   Name = "Infiltration Ult | Data Tuned",
+   LoadingTitle = "Optimizing AI...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -37,9 +37,9 @@ local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
 
 local InfoTab = Window:CreateTab("Info", 4483362458) 
-local NightTab = Window:CreateTab("Night 1", 4483362458)
-local TestingTab = Window:CreateTab("Testing", 4483362458)
+local NightTab = Window:CreateTab("Night 1", 4483362458)   
 local ToolsTab = Window:CreateTab("Tools", 4483362458) 
+local TestingTab = Window:CreateTab("Testing", 4483362458)
 
 InfoTab:CreateSection("Modifiers")
 local function createStatusLabel(name, boolObj)
@@ -54,6 +54,7 @@ createStatusLabel("Zombies", mods.Zombies)
 
 local ActionInProgress = false 
 local NoclipConnection = nil
+local LastMutantDespawn = 0 -- Track when he left to predict safety
 
 local RoomCoordinates = {
     ["Entrance"] = Vector3.new(-4.87, 7.8, -36.31), 
@@ -115,6 +116,14 @@ local function EmergencyEvac()
     if player.Character then InstantTP(CFrame.new(RoomCoordinates["BottomCorridor"])) end
 end
 
+-- TRACKING DESPAWN FOR SAFETY WINDOW
+workspace.ChildRemoved:Connect(function(child)
+    if child.Name == "Mutant" then
+        LastMutantDespawn = tick()
+        -- notify("SAFE", "Mutant Despawned. 20s Window Open.")
+    end
+end)
+
 workspace.ChildAdded:Connect(function(c) if c.Name == "Mutant" and ActionInProgress then EmergencyEvac() end end)
 
 local function SmartWait(dur)
@@ -125,7 +134,6 @@ local function SmartWait(dur)
     return true 
 end
 
--- === REFUEL ===
 local FuelSection = NightTab:CreateSection("Fuel")
 local refueling = false
 local autoConn = nil
@@ -134,11 +142,18 @@ local function executeRefuel(isManual)
     if isManual then ActionInProgress = false; refueling = false end
     if refueling or ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
+    -- [[ DATA-DRIVEN LOGIC ]] --
+    -- If Mutant is here, wait.
     if not isManual and workspace:FindFirstChild("Mutant") then 
-        notify("WAIT", "Waiting for Mutant to leave...")
+        notify("WAIT", "Mutant active. Waiting for safe window...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        notify("CLEAR", "Mutant gone. Starting Refuel.")
     end
+    
+    -- Double Check Safety Window (Optional logic layer)
+    -- local timeSinceDespawn = tick() - LastMutantDespawn
+    -- if timeSinceDespawn > 25 and not isManual then
+         -- notify("CAUTION", "High Risk Zone (25s+). Proceeding with caution.")
+    -- end
 
     refueling = true; ActionInProgress = true
     
@@ -172,15 +187,12 @@ end
 NightTab:CreateToggle({Name = "Auto Refuel (40%)", CurrentValue = false, Flag = "AutoRefuel", Callback = function(on)
     if on then 
         notify("SYS", "Auto Refuel ON")
-        autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
-            if fuel.Value <= 40 then task.spawn(function() executeRefuel(false) end) end 
-        end)
+        autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() if fuel.Value <= 40 then task.spawn(function() executeRefuel(false) end) end end)
     else 
         if autoConn then autoConn:Disconnect() end 
     end
 end})
 
-NightTab:CreateParagraph({Title = "Usage", Content = "Waits for Mutant to be flashed, then fills 2x."})
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
 
 NightTab:CreateToggle({Name = "Fuel ESP", CurrentValue = false, Flag = "FuelESP", Callback = function(v)
@@ -194,7 +206,6 @@ NightTab:CreateToggle({Name = "Fuel ESP", CurrentValue = false, Flag = "FuelESP"
     end
 end})
 
--- === LIGHTS ===
 local LightsSection = NightTab:CreateSection("Lights")
 local LCon = nil
 NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoLights", Callback = function(on)
@@ -215,14 +226,10 @@ NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoL
                     if RoomCoordinates[rn] then
                         local start = player.Character.HumanoidRootPart.CFrame
                         FlightMove(GetGroundedCFrame(RoomCoordinates[rn]))
-                        
                         task.wait(0.7) 
-                        
                         for _,l in pairs(workspace.Lights:GetChildren()) do
                             if l.Status.RoomName.Value == rn then 
-                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); 
-                                task.wait(1); 
-                                fireclickdetector(l.Switch.Detector.ClickDetector)
+                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
                             end
                         end
                         FlightMove(start)
@@ -239,7 +246,6 @@ NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoL
 end})
 NightTab:CreateParagraph({Title = "Usage", Content = "Flashes lights when Mutant peeks (0.7s delay)."})
 
--- === BLIZZARD ===
 if mods.Blizzard then
     local BzTab = Window:CreateTab("Blizzard", 4483362458); local fCon = nil
     local function restock()
@@ -272,7 +278,7 @@ if mods.Blizzard then
     BzTab:CreateParagraph({Title = "Usage", Content = "Refuels fire automatically (Instant TP)."})
 end
 
--- ==================== TESTING TAB (LOGS) ====================
+-- ==================== TESTING TAB ====================
 local MutantLog = {}
 local MutantCount = 0
 local LastRealTime = tick()
@@ -313,7 +319,6 @@ TestingTab:CreateToggle({
 })
 TestingTab:CreateButton({Name = "Clear Logs", Callback = function() MutantLog={}; MutantCount=0; LogDisplay:Set({Title="History", Content="Cleared."}) end})
 
--- ==================== TOOLS ====================
 ToolsTab:CreateButton({Name = "Fix Stuck Buttons", Callback = function() ActionInProgress=false; refueling=false; notify("OK", "Reset.") end})
 ToolsTab:CreateButton({Name = "Copy Pos", Callback = function() 
     if player.Character then 
