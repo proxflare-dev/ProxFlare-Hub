@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Data Tuned",
-   LoadingTitle = "Optimizing AI...",
+   Name = "Infiltration Ult | Speed Tuned",
+   LoadingTitle = "Adjusting Physics...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -42,11 +42,11 @@ local ToolsTab = Window:CreateTab("Tools", 4483362458)
 local TestingTab = Window:CreateTab("Testing", 4483362458)
 
 InfoTab:CreateSection("Modifiers")
-local function createStatusLabel(name, boolObj)
-    local isActive = boolObj and boolObj.Value == true
-    local c = isActive and "#00FF00" or "#555555"
-    local t = isActive and "ACTIVE" or "INACTIVE"
-    InfoTab:CreateParagraph({Title = name, Content = string.format("<font color='%s'>%s</font>", c, t)})
+local function createStatusLabel(n, b)
+    local a = b and b.Value==true
+    local c = a and "#00FF00" or "#555555"
+    local t = a and "ACTIVE" or "INACTIVE"
+    InfoTab:CreateParagraph({Title = n, Content = string.format("<font color='%s'>%s</font>", c, t)})
 end
 createStatusLabel("Bloodmoon", mods.Bloodmoon)
 createStatusLabel("Blizzard", mods.Blizzard)
@@ -54,7 +54,6 @@ createStatusLabel("Zombies", mods.Zombies)
 
 local ActionInProgress = false 
 local NoclipConnection = nil
-local LastMutantDespawn = 0 -- Track when he left to predict safety
 
 local RoomCoordinates = {
     ["Entrance"] = Vector3.new(-4.87, 7.8, -36.31), 
@@ -67,14 +66,10 @@ local RoomCoordinates = {
     ["Bathroom"] = Vector3.new(-27.76, 23.79, -46.76),
     ["WoodPile"] = Vector3.new(-30.2, 4.2, -114.0),
     ["FirePlace"] = Vector3.new(-44.5, 7.9, -61.9),
-    ["JerryCan"] = Vector3.new(-76.875, 4.675, -133.212),
-    ["FuseBox"] = Vector3.new(-3.2, 4.7, -93.1)
+    ["JerryCan"] = Vector3.new(-76.875, 4.675, -133.212)
 }
 
-local function GetGroundedCFrame(v) 
-    if not player.Character then return CFrame.new(v) end
-    return CFrame.new(v) 
-end
+local function GetGroundedCFrame(v) return CFrame.new(v) end
 
 local function InstantTP(cf)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -99,10 +94,12 @@ local function EnableNoclip(bool)
     end
 end
 
+-- [[ FASTER FLIGHT SPEED ]] --
 local function FlightMove(targetCFrame)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
     local hrp = player.Character.HumanoidRootPart
-    local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - targetCFrame.Position).Magnitude / 55, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    -- Changed Divisor from 55 to 75 (Higher = Faster)
+    local tween = TweenService:Create(hrp, TweenInfo.new((hrp.Position - targetCFrame.Position).Magnitude / 75, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
     EnableNoclip(true)
     tween:Play()
     tween.Completed:Wait()
@@ -115,14 +112,6 @@ local function EmergencyEvac()
     notify("DANGER", "Mutant Detected!")
     if player.Character then InstantTP(CFrame.new(RoomCoordinates["BottomCorridor"])) end
 end
-
--- TRACKING DESPAWN FOR SAFETY WINDOW
-workspace.ChildRemoved:Connect(function(child)
-    if child.Name == "Mutant" then
-        LastMutantDespawn = tick()
-        -- notify("SAFE", "Mutant Despawned. 20s Window Open.")
-    end
-end)
 
 workspace.ChildAdded:Connect(function(c) if c.Name == "Mutant" and ActionInProgress then EmergencyEvac() end end)
 
@@ -142,18 +131,11 @@ local function executeRefuel(isManual)
     if isManual then ActionInProgress = false; refueling = false end
     if refueling or ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
-    -- [[ DATA-DRIVEN LOGIC ]] --
-    -- If Mutant is here, wait.
     if not isManual and workspace:FindFirstChild("Mutant") then 
-        notify("WAIT", "Mutant active. Waiting for safe window...")
+        notify("WAIT", "Mutant active. Waiting for flash...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
+        notify("CLEAR", "Mutant gone. Executing Refuel.")
     end
-    
-    -- Double Check Safety Window (Optional logic layer)
-    -- local timeSinceDespawn = tick() - LastMutantDespawn
-    -- if timeSinceDespawn > 25 and not isManual then
-         -- notify("CAUTION", "High Risk Zone (25s+). Proceeding with caution.")
-    -- end
 
     refueling = true; ActionInProgress = true
     
@@ -165,17 +147,32 @@ local function executeRefuel(isManual)
             
             for i = 1, 2 do
                 notify("ACT", "Refueling ("..i.."/2)...")
+                
                 InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
                 if not SmartWait(0.3) then return end
+                
                 if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
                 if not SmartWait(0.5) then return end
+                
                 if generator:FindFirstChild("ClickDetector") then 
                     fireclickdetector(generator.ClickDetector)
                     notify("OK", "Filled ("..i..")") 
                 end
-                if not SmartWait(0.5) then return end
+                
+                -- [[ BUFFER BETWEEN LOOPS ]] --
+                -- If this was loop 1, wait 0.5s so we don't break interaction
+                if i == 1 then
+                    notify("WAIT", "Stabilizing for Cycle 2...")
+                    if not SmartWait(0.5) then return end
+                else
+                    -- Loop 2 done
+                    if not SmartWait(0.5) then return end
+                end
             end
             
+            -- [[ FINAL RETURN STABILIZATION ]] --
+            -- Ensure server registers the fill before TP
+            task.wait(0.2) 
             InstantTP(start)
             notify("DONE", "Refuel Complete.")
         end
@@ -194,7 +191,6 @@ NightTab:CreateToggle({Name = "Auto Refuel (40%)", CurrentValue = false, Flag = 
 end})
 
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
-
 NightTab:CreateToggle({Name = "Fuel ESP", CurrentValue = false, Flag = "FuelESP", Callback = function(v)
     if v then
         local b = Instance.new("BillboardGui", CoreGui); b.Adornee = generator:FindFirstChildWhichIsA("BasePart"); b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,4,0)
@@ -226,10 +222,14 @@ NightTab:CreateToggle({Name = "Auto Lights", CurrentValue = false, Flag = "AutoL
                     if RoomCoordinates[rn] then
                         local start = player.Character.HumanoidRootPart.CFrame
                         FlightMove(GetGroundedCFrame(RoomCoordinates[rn]))
+                        
                         task.wait(0.7) 
+                        
                         for _,l in pairs(workspace.Lights:GetChildren()) do
                             if l.Status.RoomName.Value == rn then 
-                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
+                                fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); 
+                                task.wait(1); 
+                                fireclickdetector(l.Switch.Detector.ClickDetector)
                             end
                         end
                         FlightMove(start)
@@ -278,12 +278,10 @@ if mods.Blizzard then
     BzTab:CreateParagraph({Title = "Usage", Content = "Refuels fire automatically (Instant TP)."})
 end
 
--- ==================== TESTING TAB ====================
 local MutantLog = {}
 local MutantCount = 0
 local LastRealTime = tick()
 local TestConnection = nil
-
 local LogDisplay = TestingTab:CreateParagraph({Title = "Spawn History", Content = "Waiting for data..."})
 
 local function TrackMutant()
@@ -294,7 +292,6 @@ local function TrackMutant()
             local gameTime = Lighting.TimeOfDay 
             local interval = math.floor(tick() - LastRealTime)
             LastRealTime = tick()
-            
             local newRow = string.format("[%s] Spawn #%d | Interval: %ds", gameTime, MutantCount, interval)
             table.insert(MutantLog, 1, newRow)
             LogDisplay:Set({Title = "Spawn History (" .. MutantCount .. ")", Content = table.concat(MutantLog, "\n")})
@@ -303,20 +300,7 @@ local function TrackMutant()
     end)
 end
 
-TestingTab:CreateToggle({
-   Name = "Test Mutant Spawn",
-   CurrentValue = false,
-   Flag = "TestMutant",
-   Callback = function(enabled)
-       if enabled then
-           notify("SYSTEM", "Tracking ENABLED")
-           TrackMutant()
-       else
-           notify("SYSTEM", "Tracking DISABLED")
-           if TestConnection then TestConnection:Disconnect(); TestConnection = nil end
-       end
-   end,
-})
+TestingTab:CreateToggle({Name = "Test Mutant Spawn", Callback = function(en) if en then notify("SYS", "Tracking ON"); TrackMutant() else notify("SYS", "Tracking OFF"); if TestConnection then TestConnection:Disconnect() end end end})
 TestingTab:CreateButton({Name = "Clear Logs", Callback = function() MutantLog={}; MutantCount=0; LogDisplay:Set({Title="History", Content="Cleared."}) end})
 
 ToolsTab:CreateButton({Name = "Fix Stuck Buttons", Callback = function() ActionInProgress=false; refueling=false; notify("OK", "Reset.") end})
