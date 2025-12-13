@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Endgame Logic",
-   LoadingTitle = "Syncing Time...",
+   Name = "Infiltration Ult | Bed Skip",
+   LoadingTitle = "Finalizing...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -64,7 +64,8 @@ local RoomCoordinates = {
     ["Bathroom"] = Vector3.new(-27.76, 23.79, -46.76),
     ["WoodPile"] = Vector3.new(-30.2, 4.2, -114.0),
     ["FirePlace"] = Vector3.new(-44.5, 7.9, -61.9),
-    ["JerryCan"] = Vector3.new(-76.875, 4.675, -133.212)
+    ["JerryCan"] = Vector3.new(-76.875, 4.675, -133.212),
+    ["BedSkip"] = Vector3.new(-40.7, 23.8, -76.5) -- New Safe Spot
 }
 
 local function GetGroundedCFrame(v) return CFrame.new(v) end
@@ -113,8 +114,9 @@ local function FlightMove(targetCFrame)
     if nc then nc:Disconnect() end
 end
 
--- ==================== PASSIVE CLOCK ====================
+-- ==================== PASSIVE FEATURES (Clock & Bed Skip) ====================
 task.spawn(function()
+    -- 1. CLOCK
     local pGui = player:WaitForChild("PlayerGui", 5)
     local dialogue = pGui and pGui:WaitForChild("DialogueUI", 5)
     if dialogue then
@@ -127,6 +129,39 @@ task.spawn(function()
         end
     end
 end)
+
+-- 2. PASSIVE BED SKIP (Silent)
+task.spawn(function()
+    local bedProcessed = false
+    while task.wait(1) do
+        local t = Lighting.ClockTime
+        
+        -- Trigger at 4:45 AM (4.75)
+        if t >= 4.75 and t < 6 and not bedProcessed then
+            if player.Character then
+                -- Silent Lock to prevent AutoRefuel from kidnapping you
+                _G.ActionInProgress = true 
+                _G.Refueling = true 
+                
+                -- Teleport to safe spot
+                InstantTP(CFrame.new(RoomCoordinates["BedSkip"]))
+                
+                -- Wait until 5:00 AM
+                repeat task.wait(0.5) until Lighting.ClockTime >= 5.0
+                
+                -- Click Bed
+                local bed = workspace:FindFirstChild("BedSkip")
+                if bed and bed:FindFirstChild("ClickDetector") then
+                    fireclickdetector(bed.ClickDetector)
+                end
+                
+                bedProcessed = true
+                -- We keep the lock on since night is basically over
+            end
+        end
+    end
+end)
+
 
 -- ==================== 1. INFO TAB ====================
 local InfoTab = Window:CreateTab("Info", 4483362458) 
@@ -175,8 +210,7 @@ local function executeRefuel(isManual)
     if isManual then _G.ActionInProgress = false; _G.Refueling = false end
     if _G.Refueling or _G.ActionInProgress then if isManual then notify("System", "Busy.") end; return end
     
-    -- [[ ENDGAME CHECK (5:10 AM) ]] --
-    -- If time > 5.16 (approx 5:10 AM) and Fuel > 50, don't risk it.
+    -- Endgame Skip (5:10 AM+)
     if Lighting.ClockTime >= 5.16 and Lighting.ClockTime < 6 and fuel.Value > 50 then
         notify("Auto Refuel", "Endgame. Skipping.")
         return
@@ -219,7 +253,6 @@ RefuelToggle = NightTab:CreateToggle({
             notify("Auto Refuel", "ON.")
             if autoConn then autoConn:Disconnect() end
             autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
-                -- [[ REFUEL TRIGGER ]] --
                 if fuel.Value <= 40 and not _G.ActionInProgress and not _G.Refueling then 
                     task.spawn(function() executeRefuel(false) end) 
                 end 
@@ -310,7 +343,6 @@ if mods.Blizzard and mods.Blizzard.Value then
         WaitForSafety()
         _G.ActionInProgress = true
         if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
-        
         local s, e = pcall(function()
             if player.Character then
                 InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"])); 
@@ -334,7 +366,6 @@ if mods.Blizzard and mods.Blizzard.Value then
             if on then 
                 notify("Auto Fireplace", "ON.")
                 if fCon then fCon:Disconnect() end
-                -- [[ FIREPLACE DEBOUNCE FIX ]] --
                 fCon=fireFuel.Changed:Connect(function(v) 
                     if v<=50 and not _G.ActionInProgress and not _G.Refueling then 
                         task.spawn(restock) 
@@ -375,11 +406,9 @@ TestingTab:CreateToggle({
     CurrentValue = false,
     Callback = function(on)
         notify("SYSTEM", on and "Enabled." or "Disabled.")
-        
         if RefuelToggle then RefuelToggle:Set(on) end
         if LightsToggle then LightsToggle:Set(on) end
         if FuelESPToggle then FuelESPToggle:Set(on) end
-        
         if FireToggle then FireToggle:Set(on) end
         if FireESPToggle then FireESPToggle:Set(on) end
     end
