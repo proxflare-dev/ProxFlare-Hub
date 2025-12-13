@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Checkpoint",
-   LoadingTitle = "Initializing AI...",
+   Name = "Infiltration Ult | The Leash",
+   LoadingTitle = "Securing Return...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -36,83 +36,20 @@ local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
 
--- ==================== GLOBAL SAFETY TRACKER ====================
-_G.LastMutantDespawn = 0
-_G.ActionInProgress = false
+-- ==================== SAFETY GLOBALS ====================
+_G.ActionInProgress = false 
 _G.Refueling = false
+_G.Anchor = nil -- Stores the Safe Spot
+_G.LastMutantDespawn = 0
 
+-- Track Despawn for the 18s Rule
 workspace.ChildRemoved:Connect(function(child)
     if child.Name == "Mutant" then
         _G.LastMutantDespawn = tick()
     end
 end)
 
-local function WaitForSafety()
-    -- 1. If Mutant is currently here, wait until he leaves.
-    if workspace:FindFirstChild("Mutant") then
-        notify("WAIT", "Mutant active. Holding...")
-        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        _G.LastMutantDespawn = tick()
-        task.wait(0.5) -- Lag buffer
-        return true
-    end
-
-    -- 2. If he isn't here, check how "stale" our safety window is.
-    local timeSince = tick() - _G.LastMutantDespawn
-    
-    -- If >18s have passed, we are in the DANGER ZONE.
-    -- We must wait for the NEXT cycle.
-    if timeSince > 18 then
-        notify("HOLD", "Window Closed ("..math.floor(timeSince).."s). Waiting for next attack.")
-        
-        -- Wait for spawn
-        repeat task.wait(0.5) until workspace:FindFirstChild("Mutant")
-        notify("DETECT", "Mutant Spawned. Preparing...")
-        
-        -- Wait for despawn
-        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        
-        _G.LastMutantDespawn = tick()
-        task.wait(0.5) -- Lag buffer
-        notify("GO", "Fresh Window. Executing.")
-        return true
-    end
-    
-    return true -- We are within the safe window
-end
-
--- ==================== PASSIVE CLOCK ====================
-task.spawn(function()
-    local pGui = player:WaitForChild("PlayerGui", 5)
-    local dialogue = pGui and pGui:WaitForChild("DialogueUI", 5)
-    if dialogue then
-        local timerLabel = dialogue:WaitForChild("EventTimer", 5)
-        if timerLabel then
-            timerLabel.Visible = true 
-            RunService.RenderStepped:Connect(function()
-                timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) 
-            end)
-        end
-    end
-end)
-
-local InfoTab = Window:CreateTab("Info", 4483362458) 
-InfoTab:CreateSection("Modifiers")
-local function createStatusLabel(n, b)
-    local a = b and b.Value==true
-    local c = a and "#00FF00" or "#555555"
-    local t = a and "ACTIVE" or "INACTIVE"
-    InfoTab:CreateParagraph({Title = n, Content = string.format("<font color='%s'>%s</font>", c, t)})
-end
-createStatusLabel("Bloodmoon", mods.Bloodmoon)
-createStatusLabel("Blizzard", mods.Blizzard)
-createStatusLabel("Zombies", mods.Zombies)
-
-InfoTab:CreateSection("Utils")
-InfoTab:CreateButton({Name = "Reset Script (Unstuck)", Callback = function() 
-    _G.ActionInProgress = false; _G.Refueling = false; notify("OK", "State Reset.") 
-end})
-
+-- ==================== UTILS ====================
 local RoomCoordinates = {
     ["Entrance"] = Vector3.new(-4.87, 7.8, -36.31), 
     ["LivingRoom"] = Vector3.new(-22.82, 7.79, -52.76), 
@@ -131,10 +68,27 @@ local function GetGroundedCFrame(v) return CFrame.new(v) end
 
 local function InstantTP(cf)
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+    player.Character.HumanoidRootPart.CFrame = cf
+end
+
+-- FORCE TP: Tries repeatedly until you are there
+local function ForceReturn(targetCF)
+    if not player.Character then return end
     local hrp = player.Character.HumanoidRootPart
-    hrp.Velocity = Vector3.new(0,0,0)
-    hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-    hrp.CFrame = cf
+    
+    notify("RTN", "Returning...")
+    
+    -- Try up to 10 times to TP back
+    for i = 1, 10 do
+        hrp.Velocity = Vector3.new(0,0,0)
+        hrp.CFrame = targetCF
+        task.wait(0.05)
+        -- Check distance
+        if (hrp.Position - targetCF.Position).Magnitude < 5 then
+            return -- We made it
+        end
+    end
+    notify("WARN", "Leash strained! Forcing...")
 end
 
 local function EnableNoclip(bool)
@@ -161,77 +115,114 @@ local function FlightMove(targetCFrame)
     if nc then nc:Disconnect() end
 end
 
-local function EmergencyEvac(originalPos)
-    if originalPos and player.Character then InstantTP(originalPos) end
-    _G.ActionInProgress = false
-    _G.Refueling = false
-    notify("ABORT", "Emergency Return!")
-end
-
-local function SmartWait(dur, originalPos)
-    local start = tick()
-    while tick() - start < dur do
-        if workspace:FindFirstChild("Mutant") then 
-            EmergencyEvac(originalPos)
-            return false 
+-- ==================== PASSIVE CLOCK ====================
+task.spawn(function()
+    local pGui = player:WaitForChild("PlayerGui", 5)
+    local dialogue = pGui and pGui:WaitForChild("DialogueUI", 5)
+    if dialogue then
+        local timerLabel = dialogue:WaitForChild("EventTimer", 5)
+        if timerLabel then
+            timerLabel.Visible = true 
+            RunService.RenderStepped:Connect(function()
+                timerLabel.Text = string.sub(Lighting.TimeOfDay, 1, 5) 
+            end)
         end
-        task.wait(0.05)
     end
-    return true 
+end)
+
+-- ==================== 1. INFO TAB ====================
+local InfoTab = Window:CreateTab("Info", 4483362458) 
+InfoTab:CreateSection("Modifiers")
+local function createStatusLabel(n, b)
+    local a = b and b.Value==true
+    local c = a and "#00FF00" or "#555555"
+    local t = a and "ACTIVE" or "INACTIVE"
+    InfoTab:CreateParagraph({Title = n, Content = string.format("<font color='%s'>%s</font>", c, t)})
 end
+createStatusLabel("Bloodmoon", mods.Bloodmoon)
+createStatusLabel("Blizzard", mods.Blizzard)
+createStatusLabel("Zombies", mods.Zombies)
+
+InfoTab:CreateSection("Utils")
+InfoTab:CreateButton({Name = "Reset / Unstuck", Callback = function() 
+    _G.ActionInProgress = false; _G.Refueling = false; _G.Anchor = nil
+    if player.Character then InstantTP(CFrame.new(RoomCoordinates["Entrance"])) end
+    notify("OK", "Reset.") 
+end})
 
 -- ==================== 2. NIGHT 1 TAB ====================
 local NightTab = Window:CreateTab("Night 1", 4483362458)   
 local FuelSection = NightTab:CreateSection("Fuel")
 local autoConn = nil
 
+local function WaitForSafety()
+    if workspace:FindFirstChild("Mutant") then
+        notify("WAIT", "Mutant active. Holding...")
+        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
+        task.wait(0.5) -- Buffer
+        return true
+    end
+
+    local timeSince = tick() - _G.LastMutantDespawn
+    -- 18 Second Safety Rule
+    if timeSince > 18 then
+        notify("HOLD", "Risk Zone ("..math.floor(timeSince).."s). Waiting for next cycle.")
+        repeat task.wait(0.5) until workspace:FindFirstChild("Mutant") -- Wait for spawn
+        notify("DETECT", "Mutant Spawned. Standby.")
+        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant") -- Wait for despawn
+        _G.LastMutantDespawn = tick()
+        task.wait(0.5) -- Buffer
+        notify("GO", "Fresh Window.")
+    end
+end
+
 local function executeRefuel(isManual)
     if isManual then _G.ActionInProgress = false; _G.Refueling = false end
     if _G.Refueling or _G.ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
     
-    -- CHECKPOINT: Ensure it is safe to act
-    if not isManual then
-        WaitForSafety()
-    end
+    -- 1. Safety Check (Before leaving)
+    if not isManual then WaitForSafety() end
 
     _G.Refueling = true; _G.ActionInProgress = true
+    
+    -- 2. Set Anchor (The "Leash")
+    if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
     
     local s, e = pcall(function()
         local can = shack:FindFirstChild("JerryCan")
         if not can then notify("ERR", "No Can!"); return end
-        if player.Character then
-            -- SAVE START POS (Checkpoint)
-            local startCFrame = player.Character.HumanoidRootPart.CFrame
-            
-            notify("ACT", "Refueling...")
-            
-            InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
-            if not SmartWait(0.1, startCFrame) then return end 
-            
-            if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
-            
-            -- Wait 0.4s
-            if not SmartWait(0.4, startCFrame) then return end
-            
-            if generator:FindFirstChild("ClickDetector") then 
-                fireclickdetector(generator.ClickDetector)
-                notify("OK", "Filled.") 
-            end
-            
-            -- Wait 0.5s
-            if not SmartWait(0.5, startCFrame) then return end
-            
-            -- RETURN TO CHECKPOINT
-            InstantTP(startCFrame)
-            notify("DONE", "Refuel Complete.")
+        
+        notify("ACT", "Refueling...")
+        
+        -- TP OUT
+        InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
+        
+        -- Wait for character to arrive
+        task.wait(0.1)
+        
+        -- Click Can
+        if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
+        task.wait(0.4)
+        
+        -- Click Gen
+        if generator:FindFirstChild("ClickDetector") then 
+            fireclickdetector(generator.ClickDetector)
+            notify("OK", "Filled.") 
         end
+        task.wait(0.5)
     end)
+
+    if not s then notify("ERR", "Error: "..tostring(e)) end
     
-    if not s then 
-        notify("ERR", "Crash. Returning.")
-        -- Fallback return if script errors
-        if player.Character then InstantTP(CFrame.new(RoomCoordinates["Entrance"])) end
+    -- 3. THE LEASH RETURN (Guaranteed)
+    if _G.Anchor then
+        ForceReturn(_G.Anchor)
+    else
+        -- Fallback if anchor lost
+        ForceReturn(CFrame.new(RoomCoordinates["Entrance"]))
     end
+    
+    _G.Anchor = nil
     _G.Refueling = false; _G.ActionInProgress = false
 end
 
@@ -252,8 +243,7 @@ NightTab:CreateToggle({
         end
     end
 })
-NightTab:CreateParagraph({Title = "Usage", Content = "Uses Checkpoint System. Waits for fresh window if >18s since last attack."})
-
+NightTab:CreateParagraph({Title = "Usage", Content = "Strict 1x Refuel. Leash System forces return."})
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
 
 NightTab:CreateToggle({
@@ -324,35 +314,28 @@ if mods.Blizzard and mods.Blizzard.Value then
     local function restock()
         if _G.ActionInProgress or workspace:FindFirstChild("Mutant") then return end
         
-        -- CHECKPOINT
         WaitForSafety()
         
         _G.ActionInProgress = true
+        if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
+        
         local s, e = pcall(function()
             if player.Character then
-                local startCFrame = player.Character.HumanoidRootPart.CFrame
                 InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"])); 
-                if not SmartWait(0.3, startCFrame) then return end
-                
+                task.wait(0.3)
                 if woodPile.Detector:FindFirstChild("ClickDetector") then fireclickdetector(woodPile.Detector.ClickDetector) end
-                if not SmartWait(0.5, startCFrame) then return end
-                
+                task.wait(0.5)
                 InstantTP(CFrame.new(RoomCoordinates["FirePlace"])); 
-                if not SmartWait(0.4, startCFrame) then return end
-                
-                InstantTP(startCFrame)
+                task.wait(0.4)
             end
         end)
+        
+        if _G.Anchor then ForceReturn(_G.Anchor) else ForceReturn(CFrame.new(RoomCoordinates["Entrance"])) end
+        _G.Anchor = nil
         _G.ActionInProgress = false
     end
     
-    BzTab:CreateToggle({
-        Name = "Auto Fireplace", 
-        Callback = function(on) 
-            if on then fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) 
-            else if fCon then fCon:Disconnect() end end 
-        end
-    })
+    BzTab:CreateToggle({Name = "Auto Fireplace", Callback = function(on) if on then fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) else if fCon then fCon:Disconnect() end end end})
     BzTab:CreateParagraph({Title = "Usage", Content = "Uses Safety Checkpoint. Refuels fire automatically."})
     
     BzTab:CreateToggle({
@@ -368,7 +351,6 @@ if mods.Blizzard and mods.Blizzard.Value then
             end
         end
     })
-    
     BzTab:CreateButton({Name = "Restock Manually", Callback = function() task.spawn(restock) end})
 end
 
