@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | The Leash",
-   LoadingTitle = "Securing Return...",
+   Name = "Infiltration Ult | Final",
+   LoadingTitle = "Applying Custom UI...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -23,7 +23,7 @@ local generator = shack and shack:WaitForChild("Generator", 5)
 local fuel = generator and generator:WaitForChild("Fuel", 5)
 local gameState = ReplicatedStorage:WaitForChild("GameState", 5)
 
-if not shack or not generator or not gameState then notify("ERR", "Objects missing") end
+if not shack or not generator or not gameState then notify("Error", "Objects missing") end
 
 local mods = {
     Bloodmoon = SafeLoad(gameState, "Bloodmoon"),
@@ -39,10 +39,9 @@ local firePlace = SafeLoad(workspace, "FirePlace")
 -- ==================== SAFETY GLOBALS ====================
 _G.ActionInProgress = false 
 _G.Refueling = false
-_G.Anchor = nil -- Stores the Safe Spot
+_G.Anchor = nil 
 _G.LastMutantDespawn = 0
 
--- Track Despawn for the 18s Rule
 workspace.ChildRemoved:Connect(function(child)
     if child.Name == "Mutant" then
         _G.LastMutantDespawn = tick()
@@ -71,24 +70,20 @@ local function InstantTP(cf)
     player.Character.HumanoidRootPart.CFrame = cf
 end
 
--- FORCE TP: Tries repeatedly until you are there
 local function ForceReturn(targetCF)
     if not player.Character then return end
     local hrp = player.Character.HumanoidRootPart
     
-    notify("RTN", "Returning...")
-    
-    -- Try up to 10 times to TP back
     for i = 1, 10 do
         hrp.Velocity = Vector3.new(0,0,0)
         hrp.CFrame = targetCF
         task.wait(0.05)
-        -- Check distance
         if (hrp.Position - targetCF.Position).Magnitude < 5 then
-            return -- We made it
+            return 
         end
     end
-    notify("WARN", "Leash strained! Forcing...")
+    -- Silent force return attempt if loop fails
+    hrp.CFrame = targetCF 
 end
 
 local function EnableNoclip(bool)
@@ -147,7 +142,7 @@ InfoTab:CreateSection("Utils")
 InfoTab:CreateButton({Name = "Reset / Unstuck", Callback = function() 
     _G.ActionInProgress = false; _G.Refueling = false; _G.Anchor = nil
     if player.Character then InstantTP(CFrame.new(RoomCoordinates["Entrance"])) end
-    notify("OK", "Reset.") 
+    notify("System", "Reset.") 
 end})
 
 -- ==================== 2. NIGHT 1 TAB ====================
@@ -157,73 +152,56 @@ local autoConn = nil
 
 local function WaitForSafety()
     if workspace:FindFirstChild("Mutant") then
-        notify("WAIT", "Mutant active. Holding...")
+        notify("Auto Refuel", "Mutant Active. Holding...")
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant")
-        task.wait(0.5) -- Buffer
+        task.wait(0.5) 
         return true
     end
 
     local timeSince = tick() - _G.LastMutantDespawn
-    -- 18 Second Safety Rule
     if timeSince > 18 then
-        notify("HOLD", "Risk Zone ("..math.floor(timeSince).."s). Waiting for next cycle.")
-        repeat task.wait(0.5) until workspace:FindFirstChild("Mutant") -- Wait for spawn
-        notify("DETECT", "Mutant Spawned. Standby.")
-        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant") -- Wait for despawn
+        notify("Auto Refuel", "Risk Zone ("..math.floor(timeSince).."s). Waiting.")
+        repeat task.wait(0.5) until workspace:FindFirstChild("Mutant") 
+        -- Silent wait for spawn
+        repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant") 
         _G.LastMutantDespawn = tick()
-        task.wait(0.5) -- Buffer
-        notify("GO", "Fresh Window.")
+        task.wait(0.5) 
+        -- Silent Go
     end
 end
 
 local function executeRefuel(isManual)
     if isManual then _G.ActionInProgress = false; _G.Refueling = false end
-    if _G.Refueling or _G.ActionInProgress then if isManual then notify("BUSY", "Busy.") end; return end
+    if _G.Refueling or _G.ActionInProgress then if isManual then notify("System", "Busy.") end; return end
     
-    -- 1. Safety Check (Before leaving)
     if not isManual then WaitForSafety() end
 
     _G.Refueling = true; _G.ActionInProgress = true
-    
-    -- 2. Set Anchor (The "Leash")
     if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
     
     local s, e = pcall(function()
         local can = shack:FindFirstChild("JerryCan")
-        if not can then notify("ERR", "No Can!"); return end
+        if not can then notify("Error", "No Can!"); return end
         
-        notify("ACT", "Refueling...")
-        
-        -- TP OUT
+        -- Start silent
         InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
-        
-        -- Wait for character to arrive
         task.wait(0.1)
         
-        -- Click Can
         if can:FindFirstChild("ClickDetector") then fireclickdetector(can.ClickDetector) end
         task.wait(0.4)
         
-        -- Click Gen
-        if generator:FindFirstChild("ClickDetector") then 
-            fireclickdetector(generator.ClickDetector)
-            notify("OK", "Filled.") 
-        end
+        if generator:FindFirstChild("ClickDetector") then fireclickdetector(generator.ClickDetector) end
         task.wait(0.5)
     end)
 
-    if not s then notify("ERR", "Error: "..tostring(e)) end
+    if not s then notify("Error", "Crash: "..tostring(e)) end
     
-    -- 3. THE LEASH RETURN (Guaranteed)
-    if _G.Anchor then
-        ForceReturn(_G.Anchor)
-    else
-        -- Fallback if anchor lost
-        ForceReturn(CFrame.new(RoomCoordinates["Entrance"]))
-    end
-    
+    if _G.Anchor then ForceReturn(_G.Anchor) else ForceReturn(CFrame.new(RoomCoordinates["Entrance"])) end
     _G.Anchor = nil
     _G.Refueling = false; _G.ActionInProgress = false
+    
+    -- [[ SUCCESS NOTIFICATION ]] --
+    if s then notify("SUCCESS", "Refueled Gen.") end
 end
 
 NightTab:CreateToggle({
@@ -232,18 +210,19 @@ NightTab:CreateToggle({
     Flag = "AutoRefuel", 
     Callback = function(on)
         if on then 
-            notify("SYS", "Auto Refuel ON")
+            notify("Auto Refuel", "ON.")
             autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
                 if fuel.Value <= 40 and not _G.ActionInProgress then 
                     task.spawn(function() executeRefuel(false) end) 
                 end 
             end)
         else 
+            notify("Auto Refuel", "OFF.")
             if autoConn then autoConn:Disconnect() end 
         end
     end
 })
-NightTab:CreateParagraph({Title = "Usage", Content = "Strict 1x Refuel. Leash System forces return."})
+
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
 
 NightTab:CreateToggle({
@@ -261,6 +240,7 @@ NightTab:CreateToggle({
         end
     end
 })
+NightTab:CreateParagraph({Title = "Usage", Content = "Auto refuels generator or manually. Displays count in real-time."})
 
 local LightsSection = NightTab:CreateSection("Lights")
 local LCon = nil
@@ -270,7 +250,7 @@ NightTab:CreateToggle({
     Flag = "AutoLights", 
     Callback = function(on)
         if on then
-            notify("SYS", "Auto Lights ON")
+            notify("Auto Lights", "ON.")
             local function trap(m)
                 task.wait(1.5)
                 local wins = workspace:FindFirstChild("Windows")
@@ -289,7 +269,11 @@ NightTab:CreateToggle({
                             task.wait(0.7) 
                             for _,l in pairs(workspace.Lights:GetChildren()) do
                                 if l.Status.RoomName.Value == rn then 
-                                    fireclickdetector(l.Switch.Detector.ClickDetector); notify("ACT", "Flashed "..rn); task.wait(1); fireclickdetector(l.Switch.Detector.ClickDetector)
+                                    fireclickdetector(l.Switch.Detector.ClickDetector)
+                                    -- [[ SUCCESS NOTIFICATION ]] --
+                                    notify("SUCCESS", "Flashed Successfully.")
+                                    task.wait(1)
+                                    fireclickdetector(l.Switch.Detector.ClickDetector)
                                 end
                             end
                             FlightMove(start)
@@ -301,6 +285,7 @@ NightTab:CreateToggle({
             if workspace:FindFirstChild("Mutant") then task.spawn(function() trap(workspace.Mutant) end) end
             LCon = workspace.ChildAdded:Connect(function(c) if c.Name=="Mutant" then task.wait(0.5); trap(c) end end)
         else
+            notify("Auto Lights", "OFF.")
             if LCon then LCon:Disconnect() end
         end
     end
@@ -333,10 +318,23 @@ if mods.Blizzard and mods.Blizzard.Value then
         if _G.Anchor then ForceReturn(_G.Anchor) else ForceReturn(CFrame.new(RoomCoordinates["Entrance"])) end
         _G.Anchor = nil
         _G.ActionInProgress = false
+        
+        -- [[ SUCCESS NOTIFICATION ]] --
+        if s then notify("SUCCESS", "Refueled Fireplace.") end
     end
     
-    BzTab:CreateToggle({Name = "Auto Fireplace", Callback = function(on) if on then fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) else if fCon then fCon:Disconnect() end end end})
-    BzTab:CreateParagraph({Title = "Usage", Content = "Uses Safety Checkpoint. Refuels fire automatically."})
+    BzTab:CreateToggle({
+        Name = "Auto Fireplace", 
+        Callback = function(on) 
+            if on then 
+                notify("Auto Fireplace", "ON.")
+                fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) 
+            else 
+                notify("Auto Fireplace", "OFF.")
+                if fCon then fCon:Disconnect() end 
+            end 
+        end
+    })
     
     BzTab:CreateToggle({
         Name = "Fire ESP", 
@@ -351,7 +349,9 @@ if mods.Blizzard and mods.Blizzard.Value then
             end
         end
     })
+    
     BzTab:CreateButton({Name = "Restock Manually", Callback = function() task.spawn(restock) end})
+    BzTab:CreateParagraph({Title = "Usage", Content = "Refuels fire automatically (Instant TP)."})
 end
 
 -- ==================== 4. TESTING TAB ====================
@@ -373,7 +373,6 @@ local function TrackMutant()
             local newRow = string.format("[%s] Spawn #%d | Interval: %ds", gameTime, MutantCount, interval)
             table.insert(MutantLog, 1, newRow)
             LogDisplay:Set({Title = "Spawn History (" .. MutantCount .. ")", Content = table.concat(MutantLog, "\n")})
-            notify("LOGGED", "Mutant at " .. gameTime)
         end
     end)
 end
@@ -381,8 +380,13 @@ end
 TestingTab:CreateToggle({
     Name = "Test Mutant Spawn", 
     Callback = function(en) 
-        if en then notify("SYS", "Tracking ON"); TrackMutant() 
-        else notify("SYS", "Tracking OFF"); if TestConnection then TestConnection:Disconnect() end end 
+        if en then 
+            notify("Test Mutant Spawn", "Tracking Enabled.")
+            TrackMutant() 
+        else 
+            notify("Test Mutant Spawn", "Tracking Disabled.")
+            if TestConnection then TestConnection:Disconnect() end 
+        end 
     end
 })
 TestingTab:CreateButton({Name = "Clear Logs", Callback = function() MutantLog={}; MutantCount=0; LogDisplay:Set({Title="History", Content="Cleared."}) end})
