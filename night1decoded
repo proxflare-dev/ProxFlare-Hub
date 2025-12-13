@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Final",
-   LoadingTitle = "Applying Custom UI...",
+   Name = "Infiltration Ult | Master Switch",
+   LoadingTitle = "Linking Controls...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -35,6 +35,10 @@ local mods = {
 local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
+
+-- ==================== TOGGLE VARIABLES (For Master Switch) ====================
+local RefuelToggle, FuelESPToggle, LightsToggle
+local FireToggle, FireESPToggle = nil, nil -- Conditional
 
 -- ==================== SAFETY GLOBALS ====================
 _G.ActionInProgress = false 
@@ -82,7 +86,6 @@ local function ForceReturn(targetCF)
             return 
         end
     end
-    -- Silent force return attempt if loop fails
     hrp.CFrame = targetCF 
 end
 
@@ -162,11 +165,9 @@ local function WaitForSafety()
     if timeSince > 18 then
         notify("Auto Refuel", "Risk Zone ("..math.floor(timeSince).."s). Waiting.")
         repeat task.wait(0.5) until workspace:FindFirstChild("Mutant") 
-        -- Silent wait for spawn
         repeat task.wait(0.5) until not workspace:FindFirstChild("Mutant") 
         _G.LastMutantDespawn = tick()
         task.wait(0.5) 
-        -- Silent Go
     end
 end
 
@@ -183,7 +184,6 @@ local function executeRefuel(isManual)
         local can = shack:FindFirstChild("JerryCan")
         if not can then notify("Error", "No Can!"); return end
         
-        -- Start silent
         InstantTP(CFrame.new(RoomCoordinates["JerryCan"]))
         task.wait(0.1)
         
@@ -200,19 +200,19 @@ local function executeRefuel(isManual)
     _G.Anchor = nil
     _G.Refueling = false; _G.ActionInProgress = false
     
-    -- [[ SUCCESS NOTIFICATION ]] --
     if s then notify("SUCCESS", "Refueled Gen.") end
 end
 
-NightTab:CreateToggle({
+RefuelToggle = NightTab:CreateToggle({
     Name = "Auto Refuel (40%)", 
     CurrentValue = false, 
     Flag = "AutoRefuel", 
     Callback = function(on)
         if on then 
             notify("Auto Refuel", "ON.")
+            if autoConn then autoConn:Disconnect() end
             autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
-                if fuel.Value <= 40 and not _G.ActionInProgress then 
+                if fuel.Value <= 40 and not _G.ActionInProgress and not _G.Refueling then 
                     task.spawn(function() executeRefuel(false) end) 
                 end 
             end)
@@ -225,17 +225,19 @@ NightTab:CreateToggle({
 
 NightTab:CreateButton({Name = "Refuel Manually", Callback = function() task.spawn(function() executeRefuel(true) end) end})
 
-NightTab:CreateToggle({
+FuelESPToggle = NightTab:CreateToggle({
     Name = "Fuel ESP", 
     CurrentValue = false, 
     Flag = "FuelESP", 
     Callback = function(v)
         if v then
+            notify("Fuel ESP", "Enabled.")
             local b = Instance.new("BillboardGui", CoreGui); b.Adornee = generator:FindFirstChildWhichIsA("BasePart"); b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,4,0)
             local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
             t.TextColor3 = Color3.new(0,1,1); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
             t.Text = "Fuel: "..fuel.Value.."%"; fuel.Changed:Connect(function() t.Text = "Fuel: "..fuel.Value.."%" end); _G.FuelBill = b
         else
+            notify("Fuel ESP", "Disabled.")
             if _G.FuelBill then _G.FuelBill:Destroy() end
         end
     end
@@ -244,7 +246,7 @@ NightTab:CreateParagraph({Title = "Usage", Content = "Auto refuels generator or 
 
 local LightsSection = NightTab:CreateSection("Lights")
 local LCon = nil
-NightTab:CreateToggle({
+LightsToggle = NightTab:CreateToggle({
     Name = "Auto Lights", 
     CurrentValue = false, 
     Flag = "AutoLights", 
@@ -270,7 +272,6 @@ NightTab:CreateToggle({
                             for _,l in pairs(workspace.Lights:GetChildren()) do
                                 if l.Status.RoomName.Value == rn then 
                                     fireclickdetector(l.Switch.Detector.ClickDetector)
-                                    -- [[ SUCCESS NOTIFICATION ]] --
                                     notify("SUCCESS", "Flashed Successfully.")
                                     task.wait(1)
                                     fireclickdetector(l.Switch.Detector.ClickDetector)
@@ -298,12 +299,9 @@ if mods.Blizzard and mods.Blizzard.Value then
     
     local function restock()
         if _G.ActionInProgress or workspace:FindFirstChild("Mutant") then return end
-        
         WaitForSafety()
-        
         _G.ActionInProgress = true
         if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
-        
         local s, e = pcall(function()
             if player.Character then
                 InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"])); 
@@ -318,12 +316,10 @@ if mods.Blizzard and mods.Blizzard.Value then
         if _G.Anchor then ForceReturn(_G.Anchor) else ForceReturn(CFrame.new(RoomCoordinates["Entrance"])) end
         _G.Anchor = nil
         _G.ActionInProgress = false
-        
-        -- [[ SUCCESS NOTIFICATION ]] --
         if s then notify("SUCCESS", "Refueled Fireplace.") end
     end
     
-    BzTab:CreateToggle({
+    FireToggle = BzTab:CreateToggle({
         Name = "Auto Fireplace", 
         Callback = function(on) 
             if on then 
@@ -336,15 +332,17 @@ if mods.Blizzard and mods.Blizzard.Value then
         end
     })
     
-    BzTab:CreateToggle({
+    FireESPToggle = BzTab:CreateToggle({
         Name = "Fire ESP", 
         Callback = function(v)
             if v then
+                notify("Fireplace ESP", "Enabled.")
                 local b = Instance.new("BillboardGui", CoreGui); b.Adornee = firePlace; b.Size = UDim2.new(0,200,0,50); b.AlwaysOnTop = true; b.StudsOffset=Vector3.new(0,2,0)
                 local t = Instance.new("TextLabel", b); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1; 
                 t.TextColor3 = Color3.new(1,0.5,0); t.Font = Enum.Font.FredokaOne; t.TextSize = 22
                 t.Text = "Fire: "..fireFuel.Value.."%"; fireFuel.Changed:Connect(function() t.Text = "Fire: "..fireFuel.Value.."%" end); _G.FireBill = b
             else
+                notify("Fireplace ESP", "Disabled.")
                 if _G.FireBill then _G.FireBill:Destroy() end
             end
         end
@@ -356,6 +354,25 @@ end
 
 -- ==================== 4. TESTING TAB ====================
 local TestingTab = Window:CreateTab("Testing", 4483362458)
+
+TestingTab:CreateToggle({
+    Name = "Enable ALL (Master Switch)",
+    CurrentValue = false,
+    Callback = function(on)
+        -- Notification: SYSTEM Enabled/Disabled
+        notify("SYSTEM", on and "Enabled." or "Disabled.")
+        
+        -- Master Switch Logic: Force all toggles
+        if RefuelToggle then RefuelToggle:Set(on) end
+        if LightsToggle then LightsToggle:Set(on) end
+        if FuelESPToggle then FuelESPToggle:Set(on) end
+        
+        -- Conditional Toggles (Only if Blizzard active)
+        if FireToggle then FireToggle:Set(on) end
+        if FireESPToggle then FireESPToggle:Set(on) end
+    end
+})
+
 local MutantLog = {}
 local MutantCount = 0
 local LastRealTime = tick()
