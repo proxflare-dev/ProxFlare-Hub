@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Master Switch",
-   LoadingTitle = "Linking Controls...",
+   Name = "Infiltration Ult | Endgame Logic",
+   LoadingTitle = "Syncing Time...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -36,9 +36,9 @@ local fireFuel = SafeLoad(gameState, "FireFuel")
 local woodPile = SafeLoad(workspace, "WoodPile")
 local firePlace = SafeLoad(workspace, "FirePlace")
 
--- ==================== TOGGLE VARIABLES (For Master Switch) ====================
+-- ==================== TOGGLE VARIABLES ====================
 local RefuelToggle, FuelESPToggle, LightsToggle
-local FireToggle, FireESPToggle = nil, nil -- Conditional
+local FireToggle, FireESPToggle = nil, nil 
 
 -- ==================== SAFETY GLOBALS ====================
 _G.ActionInProgress = false 
@@ -175,6 +175,13 @@ local function executeRefuel(isManual)
     if isManual then _G.ActionInProgress = false; _G.Refueling = false end
     if _G.Refueling or _G.ActionInProgress then if isManual then notify("System", "Busy.") end; return end
     
+    -- [[ ENDGAME CHECK (5:10 AM) ]] --
+    -- If time > 5.16 (approx 5:10 AM) and Fuel > 50, don't risk it.
+    if Lighting.ClockTime >= 5.16 and Lighting.ClockTime < 6 and fuel.Value > 50 then
+        notify("Auto Refuel", "Endgame. Skipping.")
+        return
+    end
+    
     if not isManual then WaitForSafety() end
 
     _G.Refueling = true; _G.ActionInProgress = true
@@ -212,6 +219,7 @@ RefuelToggle = NightTab:CreateToggle({
             notify("Auto Refuel", "ON.")
             if autoConn then autoConn:Disconnect() end
             autoConn = fuel:GetPropertyChangedSignal("Value"):Connect(function() 
+                -- [[ REFUEL TRIGGER ]] --
                 if fuel.Value <= 40 and not _G.ActionInProgress and not _G.Refueling then 
                     task.spawn(function() executeRefuel(false) end) 
                 end 
@@ -302,6 +310,7 @@ if mods.Blizzard and mods.Blizzard.Value then
         WaitForSafety()
         _G.ActionInProgress = true
         if player.Character then _G.Anchor = player.Character.HumanoidRootPart.CFrame end
+        
         local s, e = pcall(function()
             if player.Character then
                 InstantTP(GetGroundedCFrame(RoomCoordinates["WoodPile"])); 
@@ -324,7 +333,13 @@ if mods.Blizzard and mods.Blizzard.Value then
         Callback = function(on) 
             if on then 
                 notify("Auto Fireplace", "ON.")
-                fCon=fireFuel.Changed:Connect(function(v) if v<=50 then task.spawn(restock) end end) 
+                if fCon then fCon:Disconnect() end
+                -- [[ FIREPLACE DEBOUNCE FIX ]] --
+                fCon=fireFuel.Changed:Connect(function(v) 
+                    if v<=50 and not _G.ActionInProgress and not _G.Refueling then 
+                        task.spawn(restock) 
+                    end 
+                end) 
             else 
                 notify("Auto Fireplace", "OFF.")
                 if fCon then fCon:Disconnect() end 
@@ -359,15 +374,12 @@ TestingTab:CreateToggle({
     Name = "Enable ALL (Master Switch)",
     CurrentValue = false,
     Callback = function(on)
-        -- Notification: SYSTEM Enabled/Disabled
         notify("SYSTEM", on and "Enabled." or "Disabled.")
         
-        -- Master Switch Logic: Force all toggles
         if RefuelToggle then RefuelToggle:Set(on) end
         if LightsToggle then LightsToggle:Set(on) end
         if FuelESPToggle then FuelESPToggle:Set(on) end
         
-        -- Conditional Toggles (Only if Blizzard active)
         if FireToggle then FireToggle:Set(on) end
         if FireESPToggle then FireESPToggle:Set(on) end
     end
