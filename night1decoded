@@ -3,8 +3,8 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local Window = Rayfield:CreateWindow({
-   Name = "Infiltration Ult | Fixed Bed Skip",
-   LoadingTitle = "Reordering Logic...",
+   Name = "Infiltration Ult | 24h Fix",
+   LoadingTitle = "Syncing 24h Clock...",
    ConfigurationSaving = {Enabled = true, FolderName = "InfUlt", FileName = "Cfg"},
    KeySystem = false,
 })
@@ -65,7 +65,7 @@ local RoomCoordinates = {
     ["WoodPile"] = Vector3.new(-30.2, 4.2, -114.0),
     ["FirePlace"] = Vector3.new(-44.5, 7.9, -61.9),
     ["JerryCan"] = Vector3.new(-76.875, 4.675, -133.212),
-    ["BedSkip"] = Vector3.new(-40.7, 23.8, -76.5)
+    ["BedSkip"] = Vector3.new(-43.1, 23.8, -77.4) -- Safe Spot
 }
 
 local function GetGroundedCFrame(v) return CFrame.new(v) end
@@ -161,9 +161,10 @@ local function executeRefuel(isManual)
     if isManual then _G.ActionInProgress = false; _G.Refueling = false end
     if _G.Refueling or _G.ActionInProgress then if isManual then notify("System", "Busy.") end; return end
     
-    -- Endgame Check
-    if Lighting.ClockTime >= 5.16 and Lighting.ClockTime < 6 and fuel.Value > 50 then
-        notify("Auto Refuel", "Endgame. Skipping.")
+    -- [[ ENDGAME CHECK ]] --
+    -- If time > 05:10 (5.16) AND time < 06:00 (6.0) AND Fuel > 60%
+    if Lighting.ClockTime >= 5.16 and Lighting.ClockTime < 6 and fuel.Value > 60 then
+        notify("Auto Refuel", "Endgame (5:10+). Skipping.")
         return
     end
     
@@ -400,7 +401,7 @@ TestingTab:CreateToggle({
 })
 TestingTab:CreateButton({Name = "Clear Logs", Callback = function() MutantLog={}; MutantCount=0; LogDisplay:Set({Title="History", Content="Cleared."}) end})
 
--- ==================== PASSIVE FEATURES (Run Last to ensure Init) ====================
+-- ==================== PASSIVE FEATURES (Run Last) ====================
 task.spawn(function()
     -- 1. CLOCK
     local pGui = player:WaitForChild("PlayerGui", 5)
@@ -416,25 +417,26 @@ task.spawn(function()
     end
 end)
 
--- 2. BED SKIP (Bottom of script to ensure utils exist)
+-- 2. BED SKIP (PM Time 16:45)
 task.spawn(function()
     local bedProcessed = false
     while task.wait(1) do
         local t = Lighting.ClockTime
         
-        -- Trigger at 4:45 AM (4.75)
-        if t >= 4.75 and t < 6 and not bedProcessed then
-            if player.Character then
+        -- Trigger at 16:45 (16.75)
+        if t >= 16.75 and t < 18 and not bedProcessed then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 -- Silent Lock
                 _G.ActionInProgress = true 
                 _G.Refueling = true 
                 
                 -- Teleport
-                InstantTP(CFrame.new(RoomCoordinates["BedSkip"]))
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(RoomCoordinates["BedSkip"])
                 
-                -- Wait for 5:00
-                repeat task.wait(0.5) until Lighting.ClockTime >= 5.0
+                -- Wait for 17:00 (17.0)
+                repeat task.wait(0.5) until Lighting.ClockTime >= 17.0
                 
+                -- Click Bed
                 local bed = workspace:FindFirstChild("BedSkip")
                 if bed and bed:FindFirstChild("ClickDetector") then
                     fireclickdetector(bed.ClickDetector)
@@ -443,5 +445,7 @@ task.spawn(function()
                 bedProcessed = true
             end
         end
+        -- Reset flag next day
+        if t < 10 then bedProcessed = false end
     end
 end)
